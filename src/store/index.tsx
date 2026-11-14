@@ -372,7 +372,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           })
         : [],
     );
-    const row = profile.data as ProfileRow | null;
+    let row = profile.data as ProfileRow | null;
+    if (!row) {
+      // An account with no details row would never be able to save one, so
+      // create the row now and carry on with whatever it returns.
+      const repaired = await neon
+        .from("profiles")
+        .insert({ user_id: userId, email })
+        .select("*")
+        .maybeSingle();
+      row = (repaired.data as ProfileRow | null) ?? null;
+    }
     setAccountState(
       row
         ? {
@@ -478,6 +488,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       signUp: async ({ password, ...profile }) => {
         try {
+          // A leftover session would still own the access token the database
+          // checks, so the new account's rows would be rejected. Start clean.
+          await neon.auth.signOut().catch(() => {});
           const result = await neon.auth.signUp.email({
             email: profile.email,
             password,
@@ -485,7 +498,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           });
           if (result.error || !result.data?.user) return errorMessage(result.error);
           const user = result.data.user;
-          const created = await neon.from("profiles").insert({ user_id: user.id, ...profile });
+          const insertProfile = () =>
+            neon.from("profiles").insert({ user_id: user.id, ...profile });
+          let created = await insertProfile();
+          if (created.error) {
+            // The new session can take a moment to reach the database layer.
+            await new Promise((resolve) => setTimeout(resolve, 600));
+            created = await insertProfile();
+          }
           if (created.error) return errorMessage(created.error);
           // The business address becomes the first saved delivery address.
           if (profile.address.trim()) {

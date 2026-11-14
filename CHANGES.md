@@ -60,3 +60,23 @@ The admin dashboard now works on the real orders instead of demo rows.
 - **Customers, dashboard and reports** read real accounts and orders. Driver names, products, settings and the delivery board columns are still local demo data.
 - **Changed for this:** `src/store/index.tsx`, `src/admin/layout.tsx`, `src/admin/screens.tsx`, `src/admin/data.tsx`, `src/i18n/ar.ts`.
 - Database side (already applied, nothing to copy): `is_admin()`, `admin_update_order()`, a loyalty trigger, an `updated_at` column, and admin read policies.
+
+## Sign-up fix — account details were sometimes not saved
+
+**Files:** `src/store/index.tsx`, `src/App.tsx`
+
+A new account could be created in Neon Auth without its row in `public.profiles`,
+so the app fell back to the placeholder business name and the customer could not
+see or save their details. Cause: signing up while another account was still
+signed in — the old access token was still the one the database checked, so the
+insert was rejected with a 403.
+
+Three changes:
+
+1. `signUp` signs the previous session out before creating the account.
+2. The `profiles` insert is retried once after a short pause, in case the new
+   session has not reached the database layer yet.
+3. `loadCustomer` repairs an account that has no details row by creating a
+   minimal one, so an existing broken account heals on next sign-in.
+4. `/signup` now sits behind `GuestOnly`, so a signed-in user is sent to the
+   home screen instead of reaching the sign-up form.

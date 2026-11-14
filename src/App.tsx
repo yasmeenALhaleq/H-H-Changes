@@ -85,8 +85,8 @@ export default function App() {
               <Route element={<GuestOnly />}>
                 <Route path="/" element={<Welcome />} />
                 <Route path="/login" element={<Login />} />
+                <Route path="/signup" element={<SignUp />} />
               </Route>
-              <Route path="/signup" element={<SignUp />} />
               <Route path="/verify-method" element={<VerifyMethod />} />
               <Route path="/otp" element={<Otp mode="signup" />} />
               <Route path="/verified" element={<AuthSuccess kind="verified" />} />
