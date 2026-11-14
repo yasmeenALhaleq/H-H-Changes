@@ -92,76 +92,6 @@ export const availabilityTone: Record<Driver["availability"], BadgeTone> = {
   "Off duty": "muted",
 };
 
-export type AdminCustomer = {
-  id: string;
-  name: string;
-  type: "Doctor" | "Clinic" | "Hotel";
-  orders30: number;
-  lastOrder: string;
-  status: "Active" | "Verifying" | "Inactive";
-  spend: number;
-  loyalty: number;
-};
-
-export const CUSTOMERS: AdminCustomer[] = [
-  {
-    id: "al-noor",
-    name: "Al Noor Clinic",
-    type: "Clinic",
-    orders30: 6,
-    lastOrder: "Today",
-    status: "Active",
-    spend: 96,
-    loyalty: 4,
-  },
-  {
-    id: "amman-dental",
-    name: "Amman Dental",
-    type: "Clinic",
-    orders30: 3,
-    lastOrder: "Today",
-    status: "Active",
-    spend: 160,
-    loyalty: 4,
-  },
-  {
-    id: "zarqa",
-    name: "Zarqa Clinic",
-    type: "Clinic",
-    orders30: 5,
-    lastOrder: "Tomorrow",
-    status: "Active",
-    spend: 0,
-    loyalty: 2,
-  },
-  {
-    id: "ruwaq",
-    name: "Hotel Ruwaq",
-    type: "Hotel",
-    orders30: 4,
-    lastOrder: "Sat",
-    status: "Verifying",
-    spend: 132,
-    loyalty: 3,
-  },
-  {
-    id: "dr-samer",
-    name: "Dr. Samer Clinic",
-    type: "Doctor",
-    orders30: 2,
-    lastOrder: "28 Oct",
-    status: "Inactive",
-    spend: 36,
-    loyalty: 1,
-  },
-];
-
-export const customerTone: Record<AdminCustomer["status"], BadgeTone> = {
-  Active: "info",
-  Verifying: "warn",
-  Inactive: "muted",
-};
-
 export type AdminSettings = {
   opening: string;
   closing: string;
@@ -185,8 +115,6 @@ const seedSettings: AdminSettings = {
 };
 
 type AdminState = {
-  signedIn: boolean;
-  setSignedIn: (value: boolean) => void;
   products: AdminProduct[];
   saveProduct: (product: AdminProduct) => void;
   settings: AdminSettings;
@@ -199,15 +127,12 @@ type AdminState = {
 const AdminContext = createContext<AdminState | null>(null);
 
 export function AdminProvider({ children }: { children: ReactNode }) {
-  const [signedIn, setSignedIn] = useState(false);
   const [products, setProducts] = useState(seedProducts);
   const [settings, setSettings] = useState(seedSettings);
   const [seenRewards, setSeenRewards] = useState<string[]>([]);
 
   const value = useMemo<AdminState>(
     () => ({
-      signedIn,
-      setSignedIn,
       products,
       saveProduct: (product) =>
         setProducts((prev) =>
@@ -221,7 +146,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       markRewardSeen: (uid) =>
         setSeenRewards((prev) => (prev.includes(uid) ? prev : [...prev, uid])),
     }),
-    [signedIn, products, settings, seenRewards],
+    [products, settings, seenRewards],
   );
 
   return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>;

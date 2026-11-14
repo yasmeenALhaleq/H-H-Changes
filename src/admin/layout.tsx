@@ -5,6 +5,7 @@ import {
   ClipboardText,
   Cube,
   Gear,
+  Spinner,
   SquaresFour,
   Truck,
   Users,
@@ -12,7 +13,7 @@ import {
 } from "@phosphor-icons/react";
 import { useI18n } from "@/i18n";
 import { Avatar, cx, LanguageSwitch } from "@/components/ui";
-import { useAdmin } from "./data";
+import { useStore } from "@/store";
 
 const nav: Array<{ to: string; label: string; icon: Icon; end?: boolean }> = [
   { to: "/admin", label: "Dashboard", icon: SquaresFour, end: true },
@@ -27,8 +28,15 @@ const nav: Array<{ to: string; label: string; icon: Icon; end?: boolean }> = [
 /** Sidebar + routed page. Redirects to the sign-in screen when the admin is signed out. */
 export function AdminLayout() {
   const { t } = useI18n();
-  const { signedIn } = useAdmin();
-  if (!signedIn) return <Navigate to="/admin/login" replace />;
+  const { session, isAdmin, signOut } = useStore();
+  if (session.status === "loading") {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-bg text-gold">
+        <Spinner size={32} className="animate-hh-spin" />
+      </div>
+    );
+  }
+  if (session.status !== "user" || !isAdmin) return <Navigate to="/admin/login" replace />;
   return (
     <div className="flex min-h-dvh bg-bg">
       <aside className="flex w-60 shrink-0 flex-col gap-1 bg-surface px-4 py-7">
@@ -50,6 +58,14 @@ export function AdminLayout() {
             {t(item.label)}
           </NavLink>
         ))}
+        {/* Not in the Figma frame: the admin needs a way to end the session. */}
+        <button
+          type="button"
+          onClick={() => void signOut()}
+          className="mt-auto flex h-10 items-center rounded-[10px] px-3 text-start text-[14px] text-ink-3 hover:text-ink-2"
+        >
+          {t("Log out")}
+        </button>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <Outlet />

@@ -121,9 +121,11 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
 };
 
 export type Order = {
-  /** Unique key; several seeded rows share a public order number between the two apps. */
+  /** Route key, `o<id>`. */
   uid: string;
   id: number;
+  /** Account that placed the order. */
+  userId: string;
   customer: string;
   product: ProductId;
   qty: number;
@@ -140,196 +142,12 @@ export type Order = {
   note?: string;
   driver?: string;
   reward?: boolean;
-  /** Shown in the customer app. */
+  createdAt: string;
+  /** Placed by the signed-in account — shown in the customer app. */
   mine: boolean;
-  /** Shown in the admin dashboard. */
+  /** Visible in the admin dashboard (the signed-in account is an admin). */
   admin: boolean;
 };
-
-/** Demo rows for the admin dashboard, until it reads live orders from the database. */
-const seedOrders: Order[] = [
-  {
-    uid: "c1024",
-    id: 1024,
-    customer: "Al Noor Clinic",
-    product: "dry-ice",
-    qty: 10,
-    status: "on_the_way",
-    address: "Abdoun, Amman",
-    slot: "Today · 14:00 – 16:00",
-    slotShort: "Today 14–16",
-    total: 15,
-    driver: "Driver Ahmad",
-    mine: true,
-    admin: true,
-  },
-  {
-    uid: "c1025",
-    id: 1025,
-    customer: "Al Noor Clinic",
-    product: "nitrogen",
-    qty: 40,
-    status: "confirmed",
-    address: "Abdoun, Amman",
-    slot: "Tomorrow · 09:00 – 11:00",
-    slotShort: "Tomorrow 09–11",
-    total: null,
-    mine: true,
-    admin: false,
-  },
-  {
-    uid: "c1026",
-    id: 1026,
-    customer: "Al Noor Clinic",
-    product: "oxygen",
-    qty: 6,
-    jar: "3L",
-    status: "pending",
-    address: "Abdoun, Amman",
-    slot: "Fri · 12:00 – 14:00",
-    slotShort: "Fri 12–14",
-    total: 36,
-    mine: true,
-    admin: false,
-  },
-  {
-    uid: "a1025",
-    id: 1025,
-    customer: "Zarqa Clinic",
-    product: "nitrogen",
-    qty: 40,
-    status: "confirmed",
-    address: "Street, building, Zarqa",
-    slot: "Tomorrow · 09:00 – 11:00",
-    slotShort: "Tomorrow 09–11",
-    total: null,
-    mine: false,
-    admin: true,
-  },
-  {
-    uid: "a1026",
-    id: 1026,
-    customer: "Amman Dental",
-    product: "oxygen",
-    qty: 16,
-    jar: "8L",
-    status: "pending",
-    address: "Abdoun, Amman",
-    slot: "Friday, 12:00 – 14:00",
-    slotShort: "Fri 12–14",
-    total: 60,
-    note: "Use the back entrance",
-    reward: true,
-    mine: false,
-    admin: true,
-  },
-  {
-    uid: "a1027",
-    id: 1027,
-    customer: "Hotel Ruwaq",
-    product: "dry-ice",
-    qty: 20,
-    status: "pending",
-    address: "Street, building, Amman",
-    slot: "Sat 10–12",
-    slotShort: "Sat 10–12",
-    total: 30,
-    mine: false,
-    admin: true,
-  },
-  {
-    uid: "c1019",
-    id: 1019,
-    customer: "Al Noor Clinic",
-    product: "dry-ice",
-    qty: 15,
-    status: "delivered",
-    address: "Abdoun, Amman",
-    slot: "28 Oct, 11:20",
-    slotShort: "28 Oct",
-    closedOn: "28 Oct, 11:20",
-    total: 22.5,
-    mine: true,
-    admin: true,
-  },
-  {
-    uid: "a1017",
-    id: 1017,
-    customer: "Zarqa Clinic",
-    product: "nitrogen",
-    qty: 30,
-    status: "delivered",
-    address: "Street, building, Zarqa",
-    slot: "21 Oct, 10:05",
-    slotShort: "21 Oct",
-    closedOn: "21 Oct, 10:05",
-    total: null,
-    driver: "Driver Samer",
-    mine: false,
-    admin: true,
-  },
-  {
-    uid: "c1017",
-    id: 1017,
-    customer: "Al Noor Clinic",
-    product: "nitrogen",
-    qty: 30,
-    status: "delivered",
-    address: "Abdoun, Amman",
-    slot: "21 Oct, 10:05",
-    slotShort: "21 Oct",
-    closedOn: "21 Oct, 10:05",
-    total: null,
-    mine: true,
-    admin: false,
-  },
-  {
-    uid: "c1012",
-    id: 1012,
-    customer: "Al Noor Clinic",
-    product: "dry-ice",
-    qty: 5,
-    status: "cancelled",
-    address: "Abdoun, Amman",
-    slot: "15 Oct",
-    slotShort: "15 Oct",
-    closedOn: "15 Oct",
-    total: 7.5,
-    mine: true,
-    admin: false,
-  },
-  {
-    uid: "c1010",
-    id: 1010,
-    customer: "Al Noor Clinic",
-    product: "dry-ice",
-    qty: 10,
-    status: "delivered",
-    address: "Abdoun, Amman",
-    slot: "14 Oct, 13:00",
-    slotShort: "14 Oct",
-    closedOn: "14 Oct, 13:00",
-    total: 15,
-    mine: true,
-    admin: false,
-  },
-  {
-    uid: "c1004",
-    id: 1004,
-    customer: "Al Noor Clinic",
-    product: "oxygen",
-    qty: 16,
-    jar: "8L",
-    status: "delivered",
-    address: "Abdoun, Amman",
-    slot: "07 Oct, 09:40",
-    slotShort: "07 Oct",
-    closedOn: "07 Oct, 09:40",
-    total: 80,
-    mine: true,
-    admin: false,
-  },
-];
 
 export const isActive = (order: Order) =>
   order.status !== "delivered" && order.status !== "cancelled";
@@ -407,9 +225,15 @@ type Store = {
   submitDraft: (slot: string, slotShort: string, address: string) => Promise<Order | null>;
   /** Customer cancellation of a pending / confirmed order. */
   cancelOrder: (uid: string, reason: string) => Promise<Failure>;
-  /** Admin demo actions (local only for now). */
-  setOrderStatus: (uid: string, status: OrderStatus) => void;
-  assignDriver: (uid: string, driver: string) => void;
+  /** True when the signed-in account has the admin role. */
+  isAdmin: boolean;
+  /** Every customer account; only loaded for an admin. */
+  customers: Customer[];
+  /** Reloads profile, addresses and orders from the database. */
+  refresh: () => Promise<void>;
+  /** Admin actions on any customer's order. */
+  setOrderStatus: (uid: string, status: OrderStatus) => Promise<Failure>;
+  assignDriver: (uid: string, driver: string) => Promise<Failure>;
 };
 
 const StoreContext = createContext<Store | null>(null);
@@ -435,10 +259,14 @@ const emptyDraft = (product: ProductId, addressId = ""): Draft => ({
 
 /* Database rows (snake_case) → app types */
 
-type ProfileRow = Account & { user_id: string; loyalty: number };
+type ProfileRow = Account & { user_id: string; loyalty: number; created_at: string };
+
+/** A customer account as the admin dashboard sees it. */
+export type Customer = Account & { userId: string; loyalty: number };
 type AddressRow = { id: string; label: string; line: string; city: string; notes: string | null };
 type OrderRow = {
   id: number;
+  user_id: string;
   customer: string;
   product: ProductId;
   qty: number;
@@ -451,6 +279,16 @@ type OrderRow = {
   note: string | null;
   driver: string | null;
   reward: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/** `14 Nov, 16:33` — when a finished order was delivered or cancelled. */
+const closedLabel = (iso: string): string => {
+  const date = new Date(iso);
+  const day = date.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+  const time = date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return `${day}, ${time}`;
 };
 
 const toAddress = (row: AddressRow): Address => ({
@@ -464,6 +302,7 @@ const toAddress = (row: AddressRow): Address => ({
 const toOrder = (row: OrderRow): Order => ({
   uid: `o${row.id}`,
   id: row.id,
+  userId: row.user_id,
   customer: row.customer,
   product: row.product,
   qty: row.qty,
@@ -472,12 +311,16 @@ const toOrder = (row: OrderRow): Order => ({
   address: row.address,
   slot: row.slot,
   slotShort: row.slot_short,
-  closedOn: row.status === "delivered" || row.status === "cancelled" ? row.slot_short : undefined,
+  closedOn:
+    row.status === "delivered" || row.status === "cancelled"
+      ? closedLabel(row.updated_at)
+      : undefined,
   total: row.total === null ? null : Number(row.total),
   note: row.note ?? undefined,
   driver: row.driver ?? undefined,
   reward: row.reward,
-  mine: true,
+  createdAt: row.created_at,
+  mine: false,
   admin: false,
 });
 
@@ -491,20 +334,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     onTheWay: true,
     delivered: false,
   });
-  const [myOrders, setMyOrders] = useState<Order[]>([]);
-  const [adminOrders, setAdminOrders] = useState<Order[]>(
-    seedOrders.filter((o) => o.admin).map((o) => ({ ...o, mine: false })),
-  );
+  /** Every order the account may see: its own, plus all customers' orders for an admin. */
+  const [allOrders, setAllOrders] = useState<Order[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loyalty, setLoyalty] = useState(0);
   const [draft, setDraftState] = useState<Draft>(emptyDraft("dry-ice"));
 
-  /** Loads the signed-in customer's profile, addresses and orders. */
+  /** Loads the signed-in account's profile, addresses and orders (all orders for an admin). */
   const loadCustomer = useCallback(async (userId: string, email: string) => {
-    const [profile, addressRows, orderRows] = await Promise.all([
+    const [profile, addressRows, orderRows, admin] = await Promise.all([
       neon.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
       neon.from("addresses").select("*").order("created_at", { ascending: true }),
       neon.from("orders").select("*").order("created_at", { ascending: false }),
+      neon.rpc("is_admin"),
     ]);
+    const admins = admin.data === true;
+    setIsAdmin(admins);
+    // An admin may read every profile; a customer only sees their own row.
+    setCustomers(
+      admins
+        ? (
+            (await neon.from("profiles").select("*").order("created_at", { ascending: true }))
+              .data ?? []
+          ).map((p) => {
+            const row = p as ProfileRow;
+            return {
+              userId: row.user_id,
+              type: row.type,
+              business: row.business,
+              contact: row.contact,
+              phone: row.phone,
+              email: row.email,
+              address: row.address,
+              loyalty: row.loyalty,
+            };
+          })
+        : [],
+    );
     const row = profile.data as ProfileRow | null;
     setAccountState(
       row
@@ -520,14 +387,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
     setLoyalty(row?.loyalty ?? 0);
     setAddresses(((addressRows.data ?? []) as AddressRow[]).map(toAddress));
-    setMyOrders(((orderRows.data ?? []) as OrderRow[]).map(toOrder));
+    setAllOrders(((orderRows.data ?? []) as OrderRow[]).map(toOrder));
     setSession({ status: "user", userId, email });
   }, []);
 
   const clearCustomer = useCallback(() => {
     setAccountState(emptyAccount);
     setAddresses([]);
-    setMyOrders([]);
+    setAllOrders([]);
+    setIsAdmin(false);
+    setCustomers([]);
     setLoyalty(0);
     setDraftState(emptyDraft("dry-ice"));
     setSession({ status: "guest" });
@@ -552,9 +421,46 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, [loadCustomer]);
 
+  // Keep orders and loyalty fresh: other people change them (the admin confirms, the customer cancels).
+  const activeUser = session.status === "user" ? session.userId : null;
+  const activeEmail = session.status === "user" ? session.email : "";
+  useEffect(() => {
+    if (!activeUser) return;
+    const refresh = () => {
+      if (document.visibilityState === "visible")
+        void loadCustomer(activeUser, activeEmail).catch(() => {});
+    };
+    const timer = window.setInterval(refresh, 20000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [activeUser, activeEmail, loadCustomer]);
+
   const store = useMemo<Store>(() => {
+    const orders = allOrders.map((o) => ({ ...o, mine: o.userId === activeUser, admin: isAdmin }));
+    const myOrders = orders.filter((o) => o.mine);
     const rewardReady = loyalty >= REWARD_EVERY - 1;
     const userId = session.status === "user" ? session.userId : null;
+
+    /** Admin change to an order, through the database function that checks the admin role. */
+    const adminUpdate = async (
+      uid: string,
+      change: { p_status?: OrderStatus; p_driver?: string },
+    ): Promise<Failure> => {
+      try {
+        const order = orders.find((o) => o.uid === uid);
+        if (!order) return "Order not found";
+        const { data, error } = await neon.rpc("admin_update_order", { p_id: order.id, ...change });
+        if (error || !data) return errorMessage(error);
+        const updated = toOrder(data as OrderRow);
+        setAllOrders((prev) => prev.map((o) => (o.uid === uid ? updated : o)));
+        return null;
+      } catch (error) {
+        return errorMessage(error);
+      }
+    };
 
     return {
       session,
@@ -684,7 +590,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       notifications,
       setNotifications: (patch) => setNotificationsState((prev) => ({ ...prev, ...patch })),
 
-      orders: [...myOrders, ...adminOrders],
+      isAdmin,
+      customers,
+      refresh: async () => {
+        if (userId) await loadCustomer(userId, activeEmail).catch(() => {});
+      },
+      orders,
       loyalty,
       fresh: myOrders.length === 0,
       rewardReady,
@@ -715,7 +626,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             .single();
           if (error || !data) return null;
           const order = toOrder(data as OrderRow);
-          setMyOrders((prev) => [order, ...prev]);
+          setAllOrders((prev) => [order, ...prev]);
           return order;
         } catch (error) {
           return null;
@@ -731,7 +642,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             .update({ status: "cancelled", cancel_reason: reason })
             .eq("id", order.id);
           if (error) return errorMessage(error);
-          setMyOrders((prev) =>
+          setAllOrders((prev) =>
             prev.map((o) => (o.uid === uid ? { ...o, status: "cancelled" } : o)),
           );
           return null;
@@ -740,18 +651,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       },
 
-      setOrderStatus: (uid, status) =>
-        setAdminOrders((prev) => prev.map((o) => (o.uid === uid ? { ...o, status } : o))),
-      assignDriver: (uid, driver) =>
-        setAdminOrders((prev) => prev.map((o) => (o.uid === uid ? { ...o, driver } : o))),
+      setOrderStatus: (uid, status) => adminUpdate(uid, { p_status: status }),
+      assignDriver: (uid, driver) => adminUpdate(uid, { p_driver: driver }),
     };
   }, [
     session,
     account,
     addresses,
     notifications,
-    myOrders,
-    adminOrders,
+    allOrders,
+    isAdmin,
+    customers,
+    activeUser,
+    activeEmail,
     loyalty,
     draft,
     loadCustomer,

@@ -46,5 +46,17 @@ Customer accounts and data now live in the Neon project **H&H** (`dawn-math-0571
 - **Accounts:** sign-up and login with email + password (Neon Auth). SMS verification is skipped for now: after "Create Account" the customer goes straight to "Account Verified".
 - **Tables:** `profiles`, `addresses`, `orders` — row-level security lets each customer read and change only their own rows.
 - **Changed for this:** `package.json`, `pnpm-lock.yaml`, `src/App.tsx`, `src/lib/neon.ts` (new), `src/store/index.tsx`, `src/customer/auth.tsx`, `src/customer/shop.tsx`, `src/customer/orders.tsx`, `src/customer/profile.tsx`, `src/i18n/ar.ts`.
-- **Not connected yet:** the admin dashboard still shows demo data, and "Forgot password" does not send anything.
+- **Not connected yet:** "Forgot password" does not send anything.
 - Sign-in only works from `https://hh-co.figma.site` (the trusted origin) and from localhost.
+
+## Admin connected to the same database (14 Nov, later)
+
+The admin dashboard now works on the real orders instead of demo rows.
+
+- **Admin sign-in** uses the same Neon accounts. An account only reaches `/#/admin` when its Neon Auth role is `admin`.
+- **Orders** — every customer's orders are listed; the admin can confirm, assign a driver, mark out for delivery, mark delivered, or cancel. The customer sees the new status (the app reloads orders on focus and every 20 seconds).
+- **Customer cancels** show up on the admin side the same way.
+- **Loyalty** — a delivered order adds one to that customer's counter in the database; the 5th order applies the 25% discount and resets the cycle.
+- **Customers, dashboard and reports** read real accounts and orders. Driver names, products, settings and the delivery board columns are still local demo data.
+- **Changed for this:** `src/store/index.tsx`, `src/admin/layout.tsx`, `src/admin/screens.tsx`, `src/admin/data.tsx`, `src/i18n/ar.ts`.
+- Database side (already applied, nothing to copy): `is_admin()`, `admin_update_order()`, a loyalty trigger, an `updated_at` column, and admin read policies.

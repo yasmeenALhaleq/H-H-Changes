@@ -390,6 +390,14 @@ export const ar: Record<string, string> = {
   "Select address": "اختر العنوان",
 
   // Admin
+  "{n} in total": "{n} بالمجمل",
+  "{n} cancelled": "{n} ملغاة",
+  "Registered accounts": "حسابات مسجّلة",
+  "No orders yet": "لا توجد طلبات بعد",
+  "This account does not have admin access.": "هذا الحساب لا يملك صلاحية الإدارة.",
+  "New orders placed today": "طلبات جديدة اليوم",
+  "Mark as out for delivery": "تحويل إلى: خرج للتوصيل",
+  "Mark as delivered": "تحويل إلى: تم التوصيل",
   "2 Kg": "2 كغم",
   "1 Kg": "1 كغم",
   "100 Kg": "100 كغم",

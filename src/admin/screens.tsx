@@ -6,6 +6,7 @@ import {
   canCancel,
   isActive,
   priceOrder,
+  PRODUCT_LIST,
   PRODUCTS,
   REWARD_EVERY,
   REWARD_PERCENT,
@@ -30,14 +31,7 @@ import {
   Toggle,
 } from "@/components/ui";
 import { AdminPage, AdminUser, Panel, Stat, Table } from "./layout";
-import {
-  availabilityTone,
-  CUSTOMERS,
-  customerTone,
-  DRIVERS,
-  useAdmin,
-  type AdminProduct,
-} from "./data";
+import { availabilityTone, DRIVERS, useAdmin, type AdminProduct } from "./data";
 
 function StatusBadge({ status }: { status: OrderStatus }) {
   const { t } = useI18n();
@@ -51,16 +45,30 @@ function useAdminOrders(): Order[] {
 
 /* Admin — Login / Login (Error) */
 export function AdminLogin() {
-  const navigate = useNavigate();
   const { t } = useI18n();
-  const { signedIn, setSignedIn } = useAdmin();
+  const { session, isAdmin, signIn, signOut } = useStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState(false);
   const emailBad = !/^\S+@\S+\.\S+$/.test(email);
   const passwordBad = password.length < 6;
+  // Signed in with a customer account that is not an admin.
+  const notAdmin = session.status === "user" && !isAdmin;
 
-  if (signedIn) return <Navigate to="/admin" replace />;
+  if (session.status === "user" && isAdmin) return <Navigate to="/admin" replace />;
+
+  const submit = async () => {
+    if (emailBad || passwordBad) {
+      setFailed(true);
+      return;
+    }
+    setBusy(true);
+    if (session.status === "user") await signOut();
+    const failure = await signIn(email.trim(), password);
+    setBusy(false);
+    setFailed(Boolean(failure));
+  };
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-bg p-6">
@@ -68,12 +76,7 @@ export function AdminLogin() {
         className="flex w-full max-w-[400px] flex-col gap-4 rounded-[20px] border border-line bg-surface p-8"
         onSubmit={(e) => {
           e.preventDefault();
-          if (emailBad || passwordBad) {
-            setFailed(true);
-            return;
-          }
-          setSignedIn(true);
-          navigate("/admin", { replace: true });
+          void submit();
         }}
       >
         <span className="flex size-11 items-center justify-center rounded-[12px] bg-gold text-[12px] font-bold text-bg">
@@ -81,6 +84,14 @@ export function AdminLogin() {
         </span>
         <h1 className="text-[24px] leading-[1.5] font-bold text-ink">{t("Admin Sign In")}</h1>
         <p className="text-[14px] text-ink-2">{t("Operations team access only.")}</p>
+        {notAdmin && !failed && (
+          <p
+            role="alert"
+            className="rounded-[12px] border border-err bg-err-bg p-3 text-[14px] text-err"
+          >
+            {t("This account does not have admin access.")}
+          </p>
+        )}
         {failed && (
           <p
             role="alert"
@@ -107,14 +118,22 @@ export function AdminLogin() {
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="current-password"
         />
-        <Button full type="submit">
-          {t("Sign In")}
+        <Button full type="submit" disabled={busy}>
+          {t(busy ? "Loading…" : "Sign In")}
         </Button>
         <LanguageSwitch className="self-start" />
       </form>
     </div>
   );
 }
+
+const todayLabel = (lang: string) =>
+  new Intl.DateTimeFormat(lang === "ar" ? "ar-JO-u-nu-latn" : "en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date());
 
 function BarChart({
   bars,
@@ -151,40 +170,66 @@ function useOrderColumns() {
 /* Admin — Dashboard Overview */
 export function Dashboard() {
   const navigate = useNavigate();
-  const { t, money } = useI18n();
+  const { t, money, lang } = useI18n();
   const orders = useAdminOrders();
   const columns = useOrderColumns();
   const active = orders.filter(isActive);
+  const todayKey = new Date().toDateString();
+  const today = orders.filter((o) => new Date(o.createdAt).toDateString() === todayKey);
+  const revenue = orders
+    .filter((o) => o.status !== "cancelled")
+    .reduce((sum, o) => sum + (o.total ?? 0), 0);
+
+  // Orders placed on each of the last six days.
+  const week = Array.from({ length: 6 }, (_, i) => {
+    const day = new Date();
+    day.setDate(day.getDate() - (5 - i));
+    return {
+      label: day.toLocaleDateString("en-GB", { weekday: "short" }),
+      count: orders.filter((o) => new Date(o.createdAt).toDateString() === day.toDateString())
+        .length,
+    };
+  });
+  const peak = Math.max(1, ...week.map((d) => d.count));
+  const weekBars = week.map((day) => ({
+    label: day.label,
+    height: Math.round((day.count / peak) * 140),
+    highlight: day.count === peak && day.count > 0,
+  }));
+
   return (
     <AdminPage
       title={t("Dashboard Overview")}
-      actions={<span className="text-[14px] text-ink-2">{t("Mon, 9 Nov 2026")}</span>}
+      actions={<span className="text-[14px] text-ink-2">{todayLabel(lang)}</span>}
     >
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <Stat label={t("Orders today")} value="24" hint={t("+6 vs yesterday")} />
+        <Stat
+          label={t("Orders today")}
+          value={String(today.length)}
+          hint={t("New orders placed today")}
+        />
         <Stat
           label={t("Pending confirmation")}
-          value={String(orders.filter((o) => o.status === "pending").length + 3)}
+          value={String(orders.filter((o) => o.status === "pending").length)}
           hint={t("Needs your action")}
         />
-        <Stat label={t("On the way")} value="7" hint={t("Across 4 drivers")} />
-        <Stat label={t("Revenue (proposed)")} value={money(412)} hint={t("Pricing not final")} />
+        <Stat
+          label={t("On the way")}
+          value={String(orders.filter((o) => o.status === "on_the_way").length)}
+          hint={t("Out for delivery")}
+        />
+        <Stat
+          label={t("Revenue (proposed)")}
+          value={money(revenue)}
+          hint={t("Pricing not final")}
+        />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         <Panel className="flex flex-col gap-4 p-5">
           <h2 className="text-[16px] leading-6 font-semibold text-ink">
             {t("Orders by status (this week)")}
           </h2>
-          <BarChart
-            bars={[
-              { label: "Mon", height: 80 },
-              { label: "Tue", height: 120 },
-              { label: "Wed", height: 96, highlight: true },
-              { label: "Thu", height: 140 },
-              { label: "Fri", height: 110 },
-              { label: "Sat", height: 70 },
-            ]}
-          />
+          <BarChart bars={weekBars} />
         </Panel>
         <Panel className="flex flex-col gap-3 p-5">
           <h2 className="text-[16px] leading-6 font-semibold text-ink">
@@ -425,7 +470,16 @@ export function AdminOrderDetails() {
   const { seenRewards, markRewardSeen } = useAdmin();
   const text = useOrderText();
   const order = useAdminOrders().find((o) => o.uid === uid);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   if (!order) return <Navigate to="/admin/orders" replace />;
+
+  const run = async (action: Promise<string | null>) => {
+    setBusy(true);
+    setError(await action);
+    setBusy(false);
+  };
+  const change = (status: OrderStatus) => run(setOrderStatus(order.uid, status));
 
   const product = PRODUCTS[order.product];
   const pricing = priceOrder(order.product, order.qty, order.jar, order.reward);
@@ -456,8 +510,8 @@ export function AdminOrderDetails() {
             <Button
               size="md"
               full
-              disabled={order.status !== "pending"}
-              onClick={() => setOrderStatus(order.uid, "confirmed")}
+              disabled={order.status !== "pending" || busy}
+              onClick={() => void change("confirmed")}
             >
               {t("Confirm order")}
             </Button>
@@ -467,7 +521,7 @@ export function AdminOrderDetails() {
             <Select
               label={t("Driver")}
               value={order.driver ?? ""}
-              onChange={(driver) => assignDriver(order.uid, driver)}
+              onChange={(driver) => void run(assignDriver(order.uid, driver))}
               placeholder={t("Assign on dispatch")}
               options={DRIVERS.filter((d) => d.availability !== "Off duty").map((d) => ({
                 value: d.name,
@@ -481,11 +535,30 @@ export function AdminOrderDetails() {
               size="md"
               full
               variant="danger"
-              disabled={!canCancel(order)}
-              onClick={() => setOrderStatus(order.uid, "cancelled")}
+              disabled={!canCancel(order) || busy}
+              onClick={() => void change("cancelled")}
             >
               {t("Cancel order")}
             </Button>
+            {/* Not in the Figma frame: the order has to move on after confirmation for tracking and loyalty to work. */}
+            {(order.status === "confirmed" || order.status === "on_the_way") && (
+              <Button
+                size="md"
+                full
+                variant="outline"
+                disabled={busy}
+                onClick={() =>
+                  void change(order.status === "confirmed" ? "on_the_way" : "delivered")
+                }
+              >
+                {t(order.status === "confirmed" ? "Mark as out for delivery" : "Mark as delivered")}
+              </Button>
+            )}
+            {error && (
+              <p role="alert" className="text-[13px] text-err">
+                {error}
+              </p>
+            )}
           </Panel>
           <Panel className="flex flex-col gap-1 p-6">
             <h2 className="text-[16px] leading-6 font-semibold text-ink">
@@ -560,10 +633,23 @@ export function AdminOrderDetails() {
 export function AdminCustomers() {
   const navigate = useNavigate();
   const { t } = useI18n();
+  const { customers } = useStore();
+  const orders = useAdminOrders();
   const [query, setQuery] = useState("");
-  const list = CUSTOMERS.filter((c) =>
-    `${c.name} ${t(c.name)}`.toLowerCase().includes(query.trim().toLowerCase()),
+  const needle = query.trim().toLowerCase();
+  const list = customers.filter((c) =>
+    `${c.business} ${c.contact} ${c.email}`.toLowerCase().includes(needle),
   );
+
+  const stats = (userId: string) => {
+    const mine = orders.filter((o) => o.userId === userId);
+    const month = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    return {
+      recent: mine.filter((o) => new Date(o.createdAt).getTime() >= month).length,
+      last: mine[0],
+    };
+  };
+
   return (
     <AdminPage
       title={t("Customers")}
@@ -580,18 +666,21 @@ export function AdminCustomers() {
       <Table
         endLast
         columns={[t("Customer"), t("Type"), t("Orders (30 days)"), t("Last order"), t("Status")]}
-        rows={list.map((customer) => ({
-          key: customer.id,
-          cells: [
-            t(customer.name),
-            t(customer.type),
-            String(customer.orders30),
-            t(customer.lastOrder),
-            <Badge key="s" tone={customerTone[customer.status]}>
-              {t(customer.status)}
-            </Badge>,
-          ],
-        }))}
+        rows={list.map((customer) => {
+          const { recent, last } = stats(customer.userId);
+          return {
+            key: customer.userId,
+            cells: [
+              customer.business || customer.contact || customer.email,
+              t(customer.type),
+              String(recent),
+              last ? t(last.slotShort) : "—",
+              <Badge key="s" tone={recent > 0 ? "info" : "muted"}>
+                {t(recent > 0 ? "Active" : "Inactive")}
+              </Badge>,
+            ],
+          };
+        })}
         onRowClick={(id) => navigate(`/admin/customers/${id}`)}
       />
     </AdminPage>
@@ -602,50 +691,44 @@ export function AdminCustomers() {
 export function AdminCustomerDetails() {
   const { id } = useParams();
   const { t, money } = useI18n();
-  const { orders, loyalty, addresses } = useStore();
+  const { customers } = useStore();
   const text = useOrderText();
-  const customer = CUSTOMERS.find((c) => c.id === id);
+  const orders = useAdminOrders();
+  const customer = customers.find((c) => c.userId === id);
   if (!customer) return <Navigate to="/admin/customers" replace />;
 
-  const isAppCustomer = customer.id === "al-noor";
-  const history = orders.filter(
-    (o) => o.customer === customer.name && (isAppCustomer ? o.mine : o.admin),
-  );
-  const completed = isAppCustomer ? loyalty : customer.loyalty;
-  const remaining = REWARD_EVERY - completed;
+  const history = orders.filter((o) => o.userId === customer.userId);
+  const month = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const recent = history.filter((o) => new Date(o.createdAt).getTime() >= month);
+  const spend = history
+    .filter((o) => o.status !== "cancelled")
+    .reduce((sum, o) => sum + (o.total ?? 0), 0);
+  const remaining = REWARD_EVERY - customer.loyalty;
 
   return (
     <AdminPage
-      title={t(customer.name)}
+      title={customer.business || customer.contact || customer.email}
       actions={
-        <>
-          <Badge tone={customerTone[customer.status]}>{t(customer.status)}</Badge>
-          <Button size="md" variant="outline">
-            {t("Edit customer")}
-          </Button>
-        </>
+        <Badge tone={recent.length > 0 ? "info" : "muted"}>
+          {t(recent.length > 0 ? "Active" : "Inactive")}
+        </Badge>
       }
     >
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
         <Panel title={t("Business profile")} className="flex flex-col gap-1 p-6">
           <KeyValue label={t("Customer type")} value={t(customer.type)} />
-          <KeyValue label={t("Contact person")} value={t("Clinic manager")} />
-          <KeyValue label={t("Phone")} value={<span dir="ltr">+962 7X XXX XXXX</span>} />
-          <KeyValue label={t("Email")} value="name@example.com" />
-          <KeyValue label={t("Main address")} value={t("Street, building, Amman")} />
-          <KeyValue label={t("Saved addresses")} value={isAppCustomer ? addresses.length : 2} />
+          <KeyValue label={t("Contact person")} value={customer.contact || "—"} />
+          <KeyValue label={t("Phone")} value={<span dir="ltr">{customer.phone || "—"}</span>} />
+          <KeyValue label={t("Email")} value={customer.email} />
+          <KeyValue label={t("Main address")} value={customer.address || "—"} />
         </Panel>
         <div className="flex flex-col gap-4">
           <Stat
             label={t("Orders (30 days)")}
-            value={String(customer.orders30)}
-            hint={t("Last order today")}
+            value={String(recent.length)}
+            hint={history[0] ? t(history[0].slotShort) : t("No orders yet")}
           />
-          <Stat
-            label={t("Spend (proposed)")}
-            value={money(customer.spend)}
-            hint={t("Pricing not final")}
-          />
+          <Stat label={t("Spend (proposed)")} value={money(spend)} hint={t("Pricing not final")} />
         </div>
       </div>
 
@@ -667,13 +750,13 @@ export function AdminCustomerDetails() {
       <section className="flex flex-col gap-3.5 rounded-[10px] border border-line bg-surface px-[22px] pt-3 pb-5">
         <h2 className="text-[18px] font-semibold text-ink">{t("Loyalty Rewards")}</h2>
         <p className="text-[14px] text-gold-deep">
-          {t("{n} of 5 completed orders", { n: completed })}
+          {t("{n} of 5 completed orders", { n: customer.loyalty })}
         </p>
         <div className="grid max-w-[936px] grid-cols-5 gap-3.5">
           {Array.from({ length: REWARD_EVERY }, (_, i) => (
             <span
               key={i}
-              className={cx("h-2 rounded-[4px]", i < completed ? "bg-gold-deep" : "bg-line")}
+              className={cx("h-2 rounded-[4px]", i < customer.loyalty ? "bg-gold-deep" : "bg-line")}
             />
           ))}
         </div>
@@ -688,7 +771,7 @@ export function AdminCustomerDetails() {
 /* Admin — Delivery Management */
 export function AdminDeliveries() {
   const navigate = useNavigate();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const orders = useAdminOrders();
   const text = useOrderText();
   const columns: Array<{ title: string; list: Order[] }> = [
@@ -707,7 +790,7 @@ export function AdminDeliveries() {
   return (
     <AdminPage
       title={t("Deliveries")}
-      actions={<span className="text-[14px] text-ink-2">{t("Mon, 9 Nov 2026")}</span>}
+      actions={<span className="text-[14px] text-ink-2">{todayLabel(lang)}</span>}
     >
       <div className="grid gap-4 xl:grid-cols-3">
         {columns.map((column) => (
@@ -759,8 +842,35 @@ export function AdminDeliveries() {
 /* Admin — Reports & Analytics */
 export function AdminReports() {
   const { t, money } = useI18n();
+  const { customers } = useStore();
   const orders = useAdminOrders();
   const text = useOrderText();
+
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const thisMonth = orders.filter((o) => new Date(o.createdAt) >= monthStart);
+  const delivered = orders.filter((o) => o.status === "delivered");
+  const cancelled = orders.filter((o) => o.status === "cancelled");
+  const revenue = orders
+    .filter((o) => o.status !== "cancelled")
+    .reduce((sum, o) => sum + (o.total ?? 0), 0);
+
+  // Orders per product, scaled so the tallest bar fills the chart.
+  const byProduct = PRODUCT_LIST.map((product) => ({
+    label: product.name,
+    count: orders.filter((o) => o.product === product.id).length,
+  }));
+  const tallest = Math.max(1, ...byProduct.map((p) => p.count));
+
+  const top = customers
+    .map((customer) => ({
+      customer,
+      count: orders.filter((o) => o.userId === customer.userId).length,
+    }))
+    .filter((row) => row.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 4);
 
   const exportCsv = () => {
     const header = ["Order", "Customer", "Product", "Slot", "Status", "Total (JOD)"];
@@ -783,8 +893,6 @@ export function AdminReports() {
     URL.revokeObjectURL(url);
   };
 
-  const top = [...CUSTOMERS].sort((a, b) => b.orders30 - a.orders30).slice(0, 4);
-
   return (
     <AdminPage
       title={t("Reports & Analytics")}
@@ -795,16 +903,24 @@ export function AdminReports() {
       }
     >
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <Stat label={t("Orders this month")} value="146" hint={t("+12% vs October")} />
-        <Stat label={t("On-time delivery")} value="94%" hint={t("Target 95%")} />
         <Stat
-          label={t("Avg. delivery time")}
-          value={t("38 min")}
-          hint={t("Dispatch to delivered")}
+          label={t("Orders this month")}
+          value={String(thisMonth.length)}
+          hint={t("{n} in total", { n: orders.length })}
+        />
+        <Stat
+          label={t("Delivered")}
+          value={String(delivered.length)}
+          hint={t("{n} cancelled", { n: cancelled.length })}
+        />
+        <Stat
+          label={t("Customers")}
+          value={String(customers.length)}
+          hint={t("Registered accounts")}
         />
         <Stat
           label={t("Revenue (proposed)")}
-          value={money(5180).replace("5180", "5,180")}
+          value={money(revenue)}
           hint={t("Pricing not final")}
         />
       </div>
@@ -814,20 +930,22 @@ export function AdminReports() {
             {t("Orders by product (this month)")}
           </h2>
           <BarChart
-            bars={[
-              { label: "Dry Ice", height: 120 },
-              { label: "Nitrogen", height: 80 },
-              { label: "Oxygen 3L", height: 100 },
-              { label: "Oxygen 8L", height: 150, highlight: true },
-            ]}
+            bars={byProduct.map((product) => ({
+              label: product.label,
+              height: Math.round((product.count / tallest) * 150),
+              highlight: product.count === tallest && product.count > 0,
+            }))}
           />
         </Panel>
         <Panel className="flex flex-col gap-3 p-5">
           <h2 className="text-[16px] leading-6 font-semibold text-ink">{t("Top customers")}</h2>
-          {top.map((customer) => (
-            <div key={customer.id} className="grid grid-cols-2 text-[14px]">
-              <span className="text-ink">{t(customer.name)}</span>
-              <span className="text-ink-2">{t("{n} orders", { n: customer.orders30 })}</span>
+          {top.length === 0 && <p className="text-[14px] text-ink-2">{t("No orders yet")}</p>}
+          {top.map(({ customer, count }) => (
+            <div key={customer.userId} className="grid grid-cols-2 text-[14px]">
+              <span className="text-ink">
+                {customer.business || customer.contact || customer.email}
+              </span>
+              <span className="text-ink-2">{t("{n} orders", { n: count })}</span>
             </div>
           ))}
         </Panel>
