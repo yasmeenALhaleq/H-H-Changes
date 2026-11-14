@@ -385,6 +385,10 @@ export const ar: Record<string, string> = {
   "Working hours": "ساعات العمل",
   "Call Us": "اتصل بنا",
 
+  "We could not place your order. Check your connection and try again.":
+    "تعذّر إرسال طلبك. تحقق من الاتصال وحاول مرة أخرى.",
+  "Select address": "اختر العنوان",
+
   // Admin
   "2 Kg": "2 كغم",
   "1 Kg": "1 كغم",

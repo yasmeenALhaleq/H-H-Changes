@@ -74,8 +74,20 @@ export function Welcome() {
 export function Login() {
   const navigate = useNavigate();
   const { t } = useI18n();
+  const { signIn } = useStore();
   const [id, setId] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setBusy(true);
+    const failure = await signIn(id.trim(), password);
+    setBusy(false);
+    if (failure) setError(failure);
+    else navigate("/home", { replace: true });
+  };
+
   return (
     <Screen bodyClassName="relative px-6 pt-14 pb-10">
       <div
@@ -101,13 +113,15 @@ export function Login() {
         className="relative mt-8 flex flex-col gap-5"
         onSubmit={(e) => {
           e.preventDefault();
-          navigate("/home");
+          void submit();
         }}
       >
         <Input
           label={t("Email or Phone Number")}
           icon={EnvelopeSimple}
           placeholder={t("Enter your email or phone")}
+          type="email"
+          required
           value={id}
           onChange={(e) => setId(e.target.value)}
           autoComplete="username"
@@ -116,15 +130,17 @@ export function Login() {
           label={t("Password")}
           type="password"
           placeholder={t("Enter your password")}
+          required
           value={password}
+          error={error ?? false}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="current-password"
         />
         <LinkButton className="self-end text-[13px]" onClick={() => navigate("/forgot")}>
           {t("Forgot Password?")}
         </LinkButton>
-        <Button full type="submit">
-          {t("Login")}
+        <Button full type="submit" disabled={busy}>
+          {t(busy ? "Loading…" : "Login")}
         </Button>
       </form>
       <div className="relative mt-auto flex items-center justify-center gap-2 pt-8 text-[14px]">
@@ -141,7 +157,9 @@ const customerTypes: CustomerType[] = ["Doctor", "Clinic", "Hotel"];
 export function SignUp() {
   const navigate = useNavigate();
   const { t } = useI18n();
-  const { beginFreshAccount } = useStore();
+  const { signUp } = useStore();
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [params, setParams] = useSearchParams();
   const step = params.get("step") === "2" ? 2 : 1;
   const [form, setForm] = useState({
@@ -157,9 +175,22 @@ export function SignUp() {
   const mismatch = confirm.length > 0 && confirm !== password;
   const set = (patch: Partial<typeof form>) => setForm((prev) => ({ ...prev, ...patch }));
 
-  const createAccount = () => {
-    beginFreshAccount({ ...form, business: form.business.trim() || "Clinic Name" });
-    navigate("/verify-method");
+  const emailOk = /^\S+@\S+\.\S+$/.test(form.email.trim());
+  const canCreate = emailOk && password.length >= 8 && !mismatch && confirm.length > 0;
+
+  // Phone verification by SMS is not wired yet, so a new account goes straight to "Account Verified".
+  const createAccount = async () => {
+    setBusy(true);
+    setError(null);
+    const failure = await signUp({
+      ...form,
+      business: form.business.trim(),
+      email: form.email.trim(),
+      password,
+    });
+    setBusy(false);
+    if (failure) setError(failure);
+    else navigate("/verified", { replace: true });
   };
 
   return (
@@ -179,9 +210,16 @@ export function SignUp() {
               </div>
             </>
           ) : (
-            <Button full disabled={mismatch} onClick={createAccount}>
-              {t("Create Account")}
-            </Button>
+            <>
+              {error && (
+                <p role="alert" className="text-[13px] text-err">
+                  {error}
+                </p>
+              )}
+              <Button full disabled={!canCreate || busy} onClick={() => void createAccount()}>
+                {t(busy ? "Loading…" : "Create Account")}
+              </Button>
+            </>
           )}
         </Footer>
       }

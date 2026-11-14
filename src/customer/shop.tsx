@@ -163,7 +163,9 @@ export function Home() {
       <div className="flex items-center gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="text-[14px] text-ink-2">{t("Good morning,")}</span>
-          <span className="truncate text-[22px] font-bold text-ink">{t(account.business)}</span>
+          <span className="truncate text-[22px] font-bold text-ink">
+            {t(account.business || "Clinic Name")}
+          </span>
         </div>
         <IconButton
           icon={Bell}
@@ -239,7 +241,9 @@ function HomeNewAccount() {
     <Screen nav header={<MobileHeader brand bell />} bodyClassName="gap-5 px-6 pt-5 pb-4">
       <div className="flex flex-col gap-5">
         <span className="text-[14px] text-ink-2">{t("Good morning,")}</span>
-        <span className="text-[22px] leading-[1.5] font-bold text-ink">{t(account.business)}</span>
+        <span className="text-[22px] leading-[1.5] font-bold text-ink">
+          {t(account.business || "Clinic Name")}
+        </span>
       </div>
 
       <section className="flex flex-col gap-3 rounded-[14px] border border-line bg-elevated p-[18px]">
@@ -537,7 +541,7 @@ function useDraftSummary() {
     unit,
     qtyLabel: `${draft.qty} ${unit}`,
     address,
-    addressLabel: address ? `${t(address.label)}, ${t(address.city)}` : "",
+    addressLabel: address ? [t(address.label), t(address.city)].filter(Boolean).join(", ") : "",
     slot: date && draft.time ? `${date.short}, ${draft.time}` : "",
     slotShort:
       date && draft.time
@@ -595,7 +599,7 @@ export function OrderForm() {
     max: `${product.max} ${s.unit}`,
   };
   const belowMin = draft.qty < product.min;
-  const ready = !belowMin && Boolean(draft.date && draft.time);
+  const ready = !belowMin && Boolean(s.address && draft.date && draft.time);
 
   return (
     <Screen
@@ -672,9 +676,13 @@ export function OrderForm() {
 
       <Select
         label={t("Delivery Address")}
-        value={draft.addressId}
+        value={s.address?.id ?? ""}
         onChange={(addressId) => setDraft({ addressId })}
-        options={addresses.map((a) => ({ value: a.id, label: `${t(a.label)} — ${t(a.city)}` }))}
+        placeholder={addresses.length === 0 ? t("Select address") : undefined}
+        options={addresses.map((a) => ({
+          value: a.id,
+          label: [t(a.label), t(a.city)].filter(Boolean).join(" — "),
+        }))}
       />
       {!reorder && (
         <LinkButton
@@ -776,16 +784,47 @@ export function OrderSubmitting() {
   const submit = useRef({ submitDraft, s });
   submit.current = { submitDraft, s };
 
+  const [failed, setFailed] = useState(false);
+  const started = useRef(false);
+
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const { submitDraft: run, s: summary } = submit.current;
-      const order = run(summary.slot, summary.slotShort, summary.addressLabel);
+    // Guard against double submission (React StrictMode runs effects twice in development).
+    if (started.current) return;
+    started.current = true;
+    const { submitDraft: run, s: summary } = submit.current;
+    void run(summary.slot, summary.slotShort, summary.addressLabel).then((order) => {
+      if (!order) {
+        setFailed(true);
+        return;
+      }
       navigate(order.reward ? `/order/reward/${order.uid}` : `/order/confirmed/${order.uid}`, {
         replace: true,
       });
-    }, 1600);
-    return () => window.clearTimeout(timer);
+    });
   }, [navigate]);
+
+  if (failed) {
+    return (
+      <Screen
+        bodyClassName="items-stretch justify-center gap-4 p-6"
+        footer={
+          <Footer>
+            <Button
+              full
+              variant="outline"
+              onClick={() => navigate("/order/review", { replace: true })}
+            >
+              {t("Edit")}
+            </Button>
+          </Footer>
+        }
+      >
+        <p role="alert" className="text-center text-[15px] leading-[1.5] text-err">
+          {t("We could not place your order. Check your connection and try again.")}
+        </p>
+      </Screen>
+    );
+  }
 
   return (
     <Screen
@@ -937,7 +976,7 @@ export function AddAddress() {
   const set = (patch: Partial<typeof form>) => setForm((prev) => ({ ...prev, ...patch }));
   const valid = Boolean(form.label.trim() && form.line.trim() && form.city.trim());
 
-  const submit = () => {
+  const submit = async () => {
     const address = {
       label: form.label.trim(),
       line: form.line.trim(),
@@ -945,10 +984,10 @@ export function AddAddress() {
       notes: form.notes.trim() || undefined,
     };
     if (editing) {
-      updateAddress(editing.id, address);
+      await updateAddress(editing.id, address);
     } else {
-      const created = addAddress(address);
-      if (useNow) setDraft({ addressId: created.id });
+      const created = await addAddress(address);
+      if (created && useNow) setDraft({ addressId: created.id });
     }
     navigate(-1);
   };
@@ -959,7 +998,7 @@ export function AddAddress() {
       bodyClassName="gap-4 px-6 py-4"
       footer={
         <Footer>
-          <Button full disabled={!valid} onClick={submit}>
+          <Button full disabled={!valid} onClick={() => void submit()}>
             {t("Save & Use This Address")}
           </Button>
         </Footer>

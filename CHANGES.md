@@ -9,7 +9,7 @@ After copying, run `pnpm install` once (new dependencies were added), then `pnpm
 
 | Path | Change |
 | --- | --- |
-| `package.json` | Added `react-router-dom`, `@phosphor-icons/react`, `@fontsource-variable/inter`, `@fontsource-variable/noto-sans-arabic` |
+| `package.json` | Added `@neon/neon-js`, `react-router-dom`, `@phosphor-icons/react`, `@fontsource-variable/inter`, `@fontsource-variable/noto-sans-arabic` |
 | `pnpm-lock.yaml` | Lockfile for the new dependencies |
 | `src/App.tsx` | Routes for the customer app and the admin dashboard |
 | `src/index.css` | Design tokens (colours, fonts) as a Tailwind v4 theme |
@@ -21,7 +21,8 @@ After copying, run `pnpm install` once (new dependencies were added), then `pnpm
 | `src/assets/hh-logo.png` | H&H logo exported from the Figma file |
 | `src/i18n/index.tsx` | Language provider: English / Arabic, RTL switching |
 | `src/i18n/ar.ts` | Arabic copy, taken from the Arabic frames |
-| `src/store/index.tsx` | Catalog, pricing, orders, addresses, loyalty (in-memory demo data) |
+| `src/lib/neon.ts` | Neon client (Auth + Data API) for the `H&H` Neon project |
+| `src/store/index.tsx` | Catalog and pricing; accounts, profile, addresses and orders loaded from and saved to Neon |
 | `src/store/format.ts` | Order text helpers |
 | `src/components/ui.tsx` | Buttons, inputs, chips, tabs, toggles, badges, cards, timeline |
 | `src/components/mobile.tsx` | Phone shell, header, footer, bottom navigation |
@@ -37,3 +38,13 @@ After copying, run `pnpm install` once (new dependencies were added), then `pnpm
 
 - Customer app (mobile): `/#/` — welcome, then `/#/login`, `/#/home`, `/#/products`, `/#/orders`, `/#/profile`
 - Admin dashboard (desktop): `/#/admin/login` — any valid email and a password of 6+ characters signs in
+
+## Neon database (added 14 Nov)
+
+Customer accounts and data now live in the Neon project **H&H** (`dawn-math-05715635`).
+
+- **Accounts:** sign-up and login with email + password (Neon Auth). SMS verification is skipped for now: after "Create Account" the customer goes straight to "Account Verified".
+- **Tables:** `profiles`, `addresses`, `orders` — row-level security lets each customer read and change only their own rows.
+- **Changed for this:** `package.json`, `pnpm-lock.yaml`, `src/App.tsx`, `src/lib/neon.ts` (new), `src/store/index.tsx`, `src/customer/auth.tsx`, `src/customer/shop.tsx`, `src/customer/orders.tsx`, `src/customer/profile.tsx`, `src/i18n/ar.ts`.
+- **Not connected yet:** the admin dashboard still shows demo data, and "Forgot password" does not send anything.
+- Sign-in only works from `https://hh-co.figma.site` (the trusted origin) and from localhost.

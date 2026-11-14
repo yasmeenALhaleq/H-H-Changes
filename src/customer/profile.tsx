@@ -22,7 +22,7 @@ import {
 export function Profile() {
   const navigate = useNavigate();
   const { t, lang } = useI18n();
-  const { account, addresses } = useStore();
+  const { account, addresses, signOut } = useStore();
   return (
     <Screen
       nav
@@ -30,16 +30,22 @@ export function Profile() {
       bodyClassName="gap-3 px-6 pt-4 pb-3"
       footer={
         <Footer surface={false} className="pt-2 pb-0">
-          <Button full variant="outline" onClick={() => navigate("/")}>
+          <Button
+            full
+            variant="outline"
+            onClick={() => void signOut().then(() => navigate("/", { replace: true }))}
+          >
             {t("Log out")}
           </Button>
         </Footer>
       }
     >
       <div className="flex items-center gap-3.5 pt-2 pb-4">
-        <Avatar initials={initials(account.business)} />
+        <Avatar initials={initials(account.business || "H H")} />
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate text-[18px] font-bold text-ink">{t(account.business)}</span>
+          <span className="truncate text-[18px] font-bold text-ink">
+            {t(account.business || "Clinic Name")}
+          </span>
           <span className="text-[13px] text-ink-2">{t("Customer account · Amman")}</span>
         </div>
       </div>
@@ -100,7 +106,7 @@ export function BusinessInformation() {
           <Button
             full
             onClick={() => {
-              setAccount({ ...form, business: form.business.trim() || account.business });
+              void setAccount({ ...form, business: form.business.trim() || account.business });
               navigate(-1);
             }}
           >
@@ -183,7 +189,7 @@ export function SavedAddresses() {
             <LinkButton
               disabled={addresses.length === 1}
               className="disabled:text-ink-3"
-              onClick={() => removeAddress(address.id)}
+              onClick={() => void removeAddress(address.id)}
             >
               {t("Delete")}
             </LinkButton>

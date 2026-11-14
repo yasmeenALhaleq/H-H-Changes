@@ -265,7 +265,7 @@ const reasons = ["Ordered by mistake", "Need a different date", "Other"] as cons
 export function CancelOrder() {
   const navigate = useNavigate();
   const { t } = useI18n();
-  const { setOrderStatus } = useStore();
+  const { cancelOrder } = useStore();
   const text = useOrderText();
   const order = useOrder();
   const [reason, setReason] = useState<(typeof reasons)[number]>("Ordered by mistake");
@@ -282,8 +282,11 @@ export function CancelOrder() {
             full
             variant="danger"
             onClick={() => {
-              setOrderStatus(order.uid, "cancelled");
-              navigate("/orders?tab=history", { replace: true });
+              void cancelOrder(order.uid, [reason, notes.trim()].filter(Boolean).join(" — ")).then(
+                (failure) => {
+                  if (!failure) navigate("/orders?tab=history", { replace: true });
+                },
+              );
             }}
           >
             {t("Confirm Cancellation")}

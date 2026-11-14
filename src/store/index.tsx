@@ -1,4 +1,13 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { errorMessage, neon } from "@/lib/neon";
 
 /* ------------------------------------------------------------------ */
 /* Catalog                                                             */
@@ -137,6 +146,7 @@ export type Order = {
   admin: boolean;
 };
 
+/** Demo rows for the admin dashboard, until it reads live orders from the database. */
 const seedOrders: Order[] = [
   {
     uid: "c1024",
@@ -361,127 +371,392 @@ export type Draft = {
   reorderOf?: number;
 };
 
+export type Session =
+  | { status: "loading" }
+  | { status: "guest" }
+  | { status: "user"; userId: string; email: string };
+
+export type SignUpInput = Account & { password: string };
+
+/** Result of an action that talks to the server: `null` on success, otherwise a message to show. */
+type Failure = string | null;
+
 type Store = {
+  session: Session;
+  signIn: (email: string, password: string) => Promise<Failure>;
+  signUp: (input: SignUpInput) => Promise<Failure>;
+  signOut: () => Promise<void>;
   account: Account;
-  setAccount: (patch: Partial<Account>) => void;
+  setAccount: (patch: Partial<Account>) => Promise<Failure>;
   addresses: Address[];
-  addAddress: (address: Omit<Address, "id">) => Address;
-  updateAddress: (id: string, patch: Omit<Address, "id">) => void;
-  removeAddress: (id: string) => void;
+  addAddress: (address: Omit<Address, "id">) => Promise<Address | null>;
+  updateAddress: (id: string, patch: Omit<Address, "id">) => Promise<Failure>;
+  removeAddress: (id: string) => Promise<Failure>;
   notifications: NotificationPrefs;
   setNotifications: (patch: Partial<NotificationPrefs>) => void;
   orders: Order[];
   /** Completed orders in the current loyalty cycle (0–4). */
   loyalty: number;
-  /** True right after sign-up: a new account with no order history yet. */
+  /** True for an account that has not placed any order yet. */
   fresh: boolean;
-  /** Starts a brand-new customer account (called when sign-up completes). */
-  beginFreshAccount: (patch: Partial<Account>) => void;
   /** True when the next submitted order is the rewarded one. */
   rewardReady: boolean;
   draft: Draft;
   setDraft: (patch: Partial<Draft>) => void;
   startDraft: (product: ProductId, patch?: Partial<Draft>) => void;
-  submitDraft: (slot: string, slotShort: string, address: string) => Order;
+  submitDraft: (slot: string, slotShort: string, address: string) => Promise<Order | null>;
+  /** Customer cancellation of a pending / confirmed order. */
+  cancelOrder: (uid: string, reason: string) => Promise<Failure>;
+  /** Admin demo actions (local only for now). */
   setOrderStatus: (uid: string, status: OrderStatus) => void;
   assignDriver: (uid: string, driver: string) => void;
 };
 
 const StoreContext = createContext<Store | null>(null);
 
-const emptyDraft = (product: ProductId): Draft => ({
+const emptyAccount: Account = {
+  type: "Clinic",
+  business: "",
+  contact: "",
+  phone: "",
+  email: "",
+  address: "",
+};
+
+const emptyDraft = (product: ProductId, addressId = ""): Draft => ({
   product,
   jar: "3L",
   qty: PRODUCTS[product].min,
-  addressId: "main",
+  addressId,
   date: "",
   time: "",
   note: "",
 });
 
+/* Database rows (snake_case) → app types */
+
+type ProfileRow = Account & { user_id: string; loyalty: number };
+type AddressRow = { id: string; label: string; line: string; city: string; notes: string | null };
+type OrderRow = {
+  id: number;
+  customer: string;
+  product: ProductId;
+  qty: number;
+  jar: JarSize | null;
+  status: OrderStatus;
+  address: string;
+  slot: string;
+  slot_short: string;
+  total: number | string | null;
+  note: string | null;
+  driver: string | null;
+  reward: boolean;
+};
+
+const toAddress = (row: AddressRow): Address => ({
+  id: row.id,
+  label: row.label,
+  line: row.line,
+  city: row.city,
+  notes: row.notes ?? undefined,
+});
+
+const toOrder = (row: OrderRow): Order => ({
+  uid: `o${row.id}`,
+  id: row.id,
+  customer: row.customer,
+  product: row.product,
+  qty: row.qty,
+  jar: row.jar ?? undefined,
+  status: row.status,
+  address: row.address,
+  slot: row.slot,
+  slotShort: row.slot_short,
+  closedOn: row.status === "delivered" || row.status === "cancelled" ? row.slot_short : undefined,
+  total: row.total === null ? null : Number(row.total),
+  note: row.note ?? undefined,
+  driver: row.driver ?? undefined,
+  reward: row.reward,
+  mine: true,
+  admin: false,
+});
+
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [account, setAccountState] = useState<Account>({
-    type: "Clinic",
-    business: "Al Noor Clinic",
-    contact: "",
-    phone: "",
-    email: "",
-    address: "",
-  });
-  const [addresses, setAddresses] = useState<Address[]>([
-    { id: "main", label: "Main Clinic", line: "Street, building, Amman", city: "Amman" },
-    { id: "branch", label: "Second Branch", line: "Street, building, Zarqa", city: "Zarqa" },
-  ]);
+  const [session, setSession] = useState<Session>({ status: "loading" });
+  const [account, setAccountState] = useState<Account>(emptyAccount);
+  const [addresses, setAddresses] = useState<Address[]>([]);
   const [notifications, setNotificationsState] = useState<NotificationPrefs>({
     confirmation: true,
     statusUpdates: true,
     onTheWay: true,
     delivered: false,
   });
-  const [orders, setOrders] = useState<Order[]>(seedOrders);
-  const [loyalty, setLoyalty] = useState(4);
+  const [myOrders, setMyOrders] = useState<Order[]>([]);
+  const [adminOrders, setAdminOrders] = useState<Order[]>(
+    seedOrders.filter((o) => o.admin).map((o) => ({ ...o, mine: false })),
+  );
+  const [loyalty, setLoyalty] = useState(0);
   const [draft, setDraftState] = useState<Draft>(emptyDraft("dry-ice"));
-  const [fresh, setFresh] = useState(false);
+
+  /** Loads the signed-in customer's profile, addresses and orders. */
+  const loadCustomer = useCallback(async (userId: string, email: string) => {
+    const [profile, addressRows, orderRows] = await Promise.all([
+      neon.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
+      neon.from("addresses").select("*").order("created_at", { ascending: true }),
+      neon.from("orders").select("*").order("created_at", { ascending: false }),
+    ]);
+    const row = profile.data as ProfileRow | null;
+    setAccountState(
+      row
+        ? {
+            type: row.type,
+            business: row.business,
+            contact: row.contact,
+            phone: row.phone,
+            email: row.email,
+            address: row.address,
+          }
+        : { ...emptyAccount, email },
+    );
+    setLoyalty(row?.loyalty ?? 0);
+    setAddresses(((addressRows.data ?? []) as AddressRow[]).map(toAddress));
+    setMyOrders(((orderRows.data ?? []) as OrderRow[]).map(toOrder));
+    setSession({ status: "user", userId, email });
+  }, []);
+
+  const clearCustomer = useCallback(() => {
+    setAccountState(emptyAccount);
+    setAddresses([]);
+    setMyOrders([]);
+    setLoyalty(0);
+    setDraftState(emptyDraft("dry-ice"));
+    setSession({ status: "guest" });
+  }, []);
+
+  // Restore the session on first load.
+  useEffect(() => {
+    let cancelled = false;
+    neon.auth
+      .getSession()
+      .then(async (result) => {
+        if (cancelled) return;
+        const user = result.data?.user;
+        if (result.data?.session && user) await loadCustomer(user.id, user.email);
+        else setSession({ status: "guest" });
+      })
+      .catch(() => {
+        if (!cancelled) setSession({ status: "guest" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadCustomer]);
 
   const store = useMemo<Store>(() => {
     const rewardReady = loyalty >= REWARD_EVERY - 1;
+    const userId = session.status === "user" ? session.userId : null;
+
     return {
-      account,
-      setAccount: (patch) => setAccountState((prev) => ({ ...prev, ...patch })),
-      addresses,
-      addAddress: (address) => {
-        const created = { ...address, id: `addr-${Date.now()}` };
-        setAddresses((prev) => [...prev, created]);
-        return created;
+      session,
+
+      signIn: async (email, password) => {
+        try {
+          const result = await neon.auth.signIn.email({ email, password });
+          if (result.error || !result.data?.user) return errorMessage(result.error);
+          await loadCustomer(result.data.user.id, result.data.user.email);
+          return null;
+        } catch (error) {
+          return errorMessage(error);
+        }
       },
-      updateAddress: (id, patch) =>
-        setAddresses((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a))),
-      removeAddress: (id) => setAddresses((prev) => prev.filter((a) => a.id !== id)),
+
+      signUp: async ({ password, ...profile }) => {
+        try {
+          const result = await neon.auth.signUp.email({
+            email: profile.email,
+            password,
+            name: profile.business || profile.contact || profile.email,
+          });
+          if (result.error || !result.data?.user) return errorMessage(result.error);
+          const user = result.data.user;
+          const created = await neon.from("profiles").insert({ user_id: user.id, ...profile });
+          if (created.error) return errorMessage(created.error);
+          // The business address becomes the first saved delivery address.
+          if (profile.address.trim()) {
+            await neon.from("addresses").insert({
+              user_id: user.id,
+              label: profile.business || "Main",
+              line: profile.address.trim(),
+              city: "",
+            });
+          }
+          await loadCustomer(user.id, user.email);
+          return null;
+        } catch (error) {
+          return errorMessage(error);
+        }
+      },
+
+      signOut: async () => {
+        try {
+          await neon.auth.signOut();
+        } finally {
+          clearCustomer();
+        }
+      },
+
+      account,
+      setAccount: async (patch) => {
+        try {
+          if (!userId) return "Not signed in";
+          const next = { ...account, ...patch };
+          const { error } = await neon
+            .from("profiles")
+            .update({
+              type: next.type,
+              business: next.business,
+              contact: next.contact,
+              phone: next.phone,
+              email: next.email,
+              address: next.address,
+            })
+            .eq("user_id", userId);
+          if (error) return errorMessage(error);
+          setAccountState(next);
+          return null;
+        } catch (error) {
+          return errorMessage(error);
+        }
+      },
+
+      addresses,
+      addAddress: async (address) => {
+        try {
+          if (!userId) return null;
+          const { data, error } = await neon
+            .from("addresses")
+            .insert({
+              user_id: userId,
+              label: address.label,
+              line: address.line,
+              city: address.city,
+              notes: address.notes ?? null,
+            })
+            .select()
+            .single();
+          if (error || !data) return null;
+          const created = toAddress(data as AddressRow);
+          setAddresses((prev) => [...prev, created]);
+          return created;
+        } catch (error) {
+          return null;
+        }
+      },
+      updateAddress: async (id, patch) => {
+        try {
+          const { error } = await neon
+            .from("addresses")
+            .update({
+              label: patch.label,
+              line: patch.line,
+              city: patch.city,
+              notes: patch.notes ?? null,
+            })
+            .eq("id", id);
+          if (error) return errorMessage(error);
+          setAddresses((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+          return null;
+        } catch (error) {
+          return errorMessage(error);
+        }
+      },
+      removeAddress: async (id) => {
+        try {
+          const { error } = await neon.from("addresses").delete().eq("id", id);
+          if (error) return errorMessage(error);
+          setAddresses((prev) => prev.filter((a) => a.id !== id));
+          return null;
+        } catch (error) {
+          return errorMessage(error);
+        }
+      },
+
       notifications,
       setNotifications: (patch) => setNotificationsState((prev) => ({ ...prev, ...patch })),
-      orders,
+
+      orders: [...myOrders, ...adminOrders],
       loyalty,
-      fresh,
-      beginFreshAccount: (patch) => {
-        setAccountState((prev) => ({ ...prev, ...patch }));
-        setOrders((prev) => prev.filter((o) => !o.mine));
-        setLoyalty(0);
-        setFresh(true);
-      },
+      fresh: myOrders.length === 0,
       rewardReady,
+
       draft,
       setDraft: (patch) => setDraftState((prev) => ({ ...prev, ...patch })),
-      startDraft: (product, patch) => setDraftState({ ...emptyDraft(product), ...patch }),
-      submitDraft: (slot, slotShort, address) => {
-        const id = Math.max(1027, ...orders.map((o) => o.id)) + 1;
-        const order: Order = {
-          uid: `n${id}`,
-          id,
-          customer: account.business,
-          product: draft.product,
-          qty: draft.qty,
-          jar: draft.product === "oxygen" ? draft.jar : undefined,
-          status: "pending",
-          address,
-          slot,
-          slotShort,
-          total: priceOrder(draft.product, draft.qty, draft.jar, rewardReady).total,
-          note: draft.note || undefined,
-          reward: rewardReady,
-          mine: true,
-          admin: true,
-        };
-        setOrders((prev) => [order, ...prev]);
-        // Redeeming the reward starts a new 5-order cycle.
-        if (rewardReady) setLoyalty(0);
-        return order;
+      startDraft: (product, patch) =>
+        setDraftState({ ...emptyDraft(product, addresses[0]?.id ?? ""), ...patch }),
+      submitDraft: async (slot, slotShort, address) => {
+        try {
+          if (!userId) return null;
+          const { data, error } = await neon
+            .from("orders")
+            .insert({
+              user_id: userId,
+              customer: account.business || account.contact || account.email,
+              product: draft.product,
+              qty: draft.qty,
+              jar: draft.product === "oxygen" ? draft.jar : null,
+              address,
+              slot,
+              slot_short: slotShort,
+              total: priceOrder(draft.product, draft.qty, draft.jar, rewardReady).total,
+              note: draft.note || null,
+              reward: rewardReady,
+            })
+            .select()
+            .single();
+          if (error || !data) return null;
+          const order = toOrder(data as OrderRow);
+          setMyOrders((prev) => [order, ...prev]);
+          return order;
+        } catch (error) {
+          return null;
+        }
       },
+
+      cancelOrder: async (uid, reason) => {
+        try {
+          const order = myOrders.find((o) => o.uid === uid);
+          if (!order) return "Order not found";
+          const { error } = await neon
+            .from("orders")
+            .update({ status: "cancelled", cancel_reason: reason })
+            .eq("id", order.id);
+          if (error) return errorMessage(error);
+          setMyOrders((prev) =>
+            prev.map((o) => (o.uid === uid ? { ...o, status: "cancelled" } : o)),
+          );
+          return null;
+        } catch (error) {
+          return errorMessage(error);
+        }
+      },
+
       setOrderStatus: (uid, status) =>
-        setOrders((prev) => prev.map((o) => (o.uid === uid ? { ...o, status } : o))),
+        setAdminOrders((prev) => prev.map((o) => (o.uid === uid ? { ...o, status } : o))),
       assignDriver: (uid, driver) =>
-        setOrders((prev) => prev.map((o) => (o.uid === uid ? { ...o, driver } : o))),
+        setAdminOrders((prev) => prev.map((o) => (o.uid === uid ? { ...o, driver } : o))),
     };
-  }, [account, addresses, notifications, orders, loyalty, draft, fresh]);
+  }, [
+    session,
+    account,
+    addresses,
+    notifications,
+    myOrders,
+    adminOrders,
+    loyalty,
+    draft,
+    loadCustomer,
+    clearCustomer,
+  ]);
 
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
 }

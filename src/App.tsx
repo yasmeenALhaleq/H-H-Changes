@@ -1,6 +1,7 @@
-import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
+import { HashRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { Spinner } from "@phosphor-icons/react";
 import { I18nProvider } from "@/i18n";
-import { StoreProvider } from "@/store";
+import { StoreProvider, useStore } from "@/store";
 import { AdminProvider } from "@/admin/data";
 import { AdminLayout } from "@/admin/layout";
 import {
@@ -47,6 +48,28 @@ import {
   RewardCelebration,
 } from "@/customer/shop";
 
+function Splash() {
+  return (
+    <div className="flex min-h-dvh items-center justify-center bg-bg text-gold">
+      <Spinner size={32} className="animate-hh-spin" />
+    </div>
+  );
+}
+
+/** Customer screens need a signed-in account; guests are sent to the welcome screen. */
+function CustomerOnly() {
+  const { session } = useStore();
+  if (session.status === "loading") return <Splash />;
+  return session.status === "user" ? <Outlet /> : <Navigate to="/" replace />;
+}
+
+/** Welcome / login / sign-up are skipped for customers who are already signed in. */
+function GuestOnly() {
+  const { session } = useStore();
+  if (session.status === "loading") return <Splash />;
+  return session.status === "guest" ? <Outlet /> : <Navigate to="/home" replace />;
+}
+
 /**
  * H&H — medical gases & dry ice ordering.
  * Customer app (mobile) lives at the root routes; the operations dashboard (desktop) under /admin.
@@ -59,8 +82,10 @@ export default function App() {
           <HashRouter>
             <Routes>
               {/* Customer — auth */}
-              <Route path="/" element={<Welcome />} />
-              <Route path="/login" element={<Login />} />
+              <Route element={<GuestOnly />}>
+                <Route path="/" element={<Welcome />} />
+                <Route path="/login" element={<Login />} />
+              </Route>
               <Route path="/signup" element={<SignUp />} />
               <Route path="/verify-method" element={<VerifyMethod />} />
               <Route path="/otp" element={<Otp mode="signup" />} />
@@ -70,30 +95,32 @@ export default function App() {
               <Route path="/new-password" element={<NewPassword />} />
               <Route path="/password-updated" element={<AuthSuccess kind="password" />} />
 
-              {/* Customer — shop & ordering */}
-              <Route path="/home" element={<Home />} />
-              <Route path="/products" element={<Products />} />
-              <Route path="/products/:id" element={<ProductDetails />} />
-              <Route path="/order/review" element={<OrderReview />} />
-              <Route path="/order/submitting" element={<OrderSubmitting />} />
-              <Route path="/order/reward/:uid" element={<RewardCelebration />} />
-              <Route path="/order/confirmed/:uid" element={<OrderConfirmation />} />
-              <Route path="/order/:id" element={<OrderForm />} />
-              <Route path="/addresses/new" element={<AddAddress />} />
+              {/* Customer — signed-in area */}
+              <Route element={<CustomerOnly />}>
+                <Route path="/home" element={<Home />} />
+                <Route path="/products" element={<Products />} />
+                <Route path="/products/:id" element={<ProductDetails />} />
+                <Route path="/order/review" element={<OrderReview />} />
+                <Route path="/order/submitting" element={<OrderSubmitting />} />
+                <Route path="/order/reward/:uid" element={<RewardCelebration />} />
+                <Route path="/order/confirmed/:uid" element={<OrderConfirmation />} />
+                <Route path="/order/:id" element={<OrderForm />} />
+                <Route path="/addresses/new" element={<AddAddress />} />
 
-              {/* Customer — orders */}
-              <Route path="/orders" element={<MyOrders />} />
-              <Route path="/orders/:uid" element={<OrderDetails />} />
-              <Route path="/orders/:uid/track" element={<OrderTracking />} />
-              <Route path="/orders/:uid/cancel" element={<CancelOrder />} />
+                {/* Customer — orders */}
+                <Route path="/orders" element={<MyOrders />} />
+                <Route path="/orders/:uid" element={<OrderDetails />} />
+                <Route path="/orders/:uid/track" element={<OrderTracking />} />
+                <Route path="/orders/:uid/cancel" element={<CancelOrder />} />
 
-              {/* Customer — profile */}
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/profile/business" element={<BusinessInformation />} />
-              <Route path="/profile/addresses" element={<SavedAddresses />} />
-              <Route path="/profile/notifications" element={<NotificationSettings />} />
-              <Route path="/profile/language" element={<LanguageSettings />} />
-              <Route path="/profile/help" element={<HelpContact />} />
+                {/* Customer — profile */}
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/profile/business" element={<BusinessInformation />} />
+                <Route path="/profile/addresses" element={<SavedAddresses />} />
+                <Route path="/profile/notifications" element={<NotificationSettings />} />
+                <Route path="/profile/language" element={<LanguageSettings />} />
+                <Route path="/profile/help" element={<HelpContact />} />
+              </Route>
 
               {/* Admin dashboard */}
               <Route path="/admin/login" element={<AdminLogin />} />
