@@ -5,6 +5,74 @@ Design source: Figma file `H-H`, page **High-Fidelity Design** (node `1:4`).
 
 After copying, run `pnpm install` once (new dependencies were added), then `pnpm dev` or `pnpm build`.
 
+## ⟲ Full restore — 15 Nov (start here)
+
+HH_CO went back to a blank white page. Two reasons, both visible in the repo:
+
+1. `src/App.tsx` is the empty starter again, so nothing is mounted.
+2. Three admin files from the very first build sit at the wrong place —
+   `src/data.tsx`, `src/layout.tsx`, `src/screens.tsx` instead of
+   `src/admin/…` — and they are the 14 Nov first version, without anything added since.
+   They import `@/store` and `@/i18n`, which do not exist in HH_CO right now.
+
+Everything below is the complete, latest app: every change agreed so far
+(Neon accounts and data, SMS step skipped, admin on live orders, loyalty,
+company settings from the dashboard, Help & Contact, stale-token fix,
+sign-up fix, email label, sign in with a username). Checked on a copy of HH_CO
+with these files applied: `pnpm install`, `tsc` with no errors, `pnpm build`
+passes, and the welcome, login, sign-up and admin login screens render with no errors.
+
+The Neon database (project **H&H**, `dawn-math-05715635`) was not reset:
+accounts, orders, settings, usernames and the database functions are all still there.
+Nothing to redo on the database.
+
+### 1. Delete these three files in HH_CO
+
+- `src/data.tsx`
+- `src/layout.tsx`
+- `src/screens.tsx`
+
+### 2. Upload all of these, each at exactly this path (folders included)
+
+| Path | |
+| --- | --- |
+| `package.json` | replace |
+| `pnpm-lock.yaml` | replace |
+| `src/App.tsx` | replace |
+| `src/index.css` | replace |
+| `src/vite-env.d.ts` | new — lets TypeScript read `import.meta.env` and the `.png` import |
+| `src/assets/hh-logo.png` | new |
+| `src/i18n/index.tsx` | new |
+| `src/i18n/ar.ts` | new |
+| `src/lib/neon.ts` | new |
+| `src/lib/company.ts` | new |
+| `src/store/index.tsx` | new |
+| `src/store/format.ts` | new |
+| `src/components/ui.tsx` | new |
+| `src/components/mobile.tsx` | new |
+| `src/customer/auth.tsx` | new |
+| `src/customer/shop.tsx` | new |
+| `src/customer/orders.tsx` | new |
+| `src/customer/profile.tsx` | new |
+| `src/admin/data.tsx` | new |
+| `src/admin/layout.tsx` | new |
+| `src/admin/screens.tsx` | new |
+
+The same 21 files are in `bundle/HH_CO-full.zip`, already in their folders —
+unzip it at the root of HH_CO and they land in the right places.
+
+Do not touch `src/main.tsx`, `index.html`, `vite.config.ts`, `tsconfig.json`
+or `.figma/` — they stay as they are in HH_CO.
+
+### 3. Then
+
+Let Figma Make reinstall (it does this by itself when `package.json` changes),
+then Publish. Sign-in works on `https://hh-co.figma.site` and on localhost only.
+
+---
+
+The sections below are the history of how the app got here.
+
 ## Changed files
 
 | Path | Change |
