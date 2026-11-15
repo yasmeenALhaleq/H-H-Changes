@@ -183,3 +183,18 @@ All of it is already applied to the database — nothing to upload for this part
 "{n} / 5 completed orders", "25% off your next order", "You reached your 5th
 order", "This is {name}'s 5th order" and the rest now carry the real numbers as
 placeholders, in both languages.
+
+## Login says email only, and the customers table shows phone and email
+
+**Files:** `src/customer/auth.tsx`, `src/admin/screens.tsx`, `src/i18n/ar.ts`
+
+The sign-in field was labelled "Email or Phone Number" — carried over from the
+design — but sign-in only ever accepted an email address, so a customer typing
+their phone number was refused with no explanation. The label now reads "Email"
+in both languages and the field autocompletes as an email.
+
+There is no username in the app: an account is identified by its email.
+
+The admin customers table now carries Phone and Email columns, so the
+operations team can reach a customer from the list instead of opening their
+page, and the search box matches the phone number as well.

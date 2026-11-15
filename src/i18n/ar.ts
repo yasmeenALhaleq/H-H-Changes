@@ -90,8 +90,6 @@ export const ar: Record<string, string> = {
   // Auth
   "Welcome Back": "مرحباً بعودتك",
   "Sign in to your account to continue": "سجّل الدخول إلى حسابك للمتابعة",
-  "Email or Phone Number": "البريد الإلكتروني أو رقم الهاتف",
-  "Enter your email or phone": "أدخل بريدك الإلكتروني أو رقم هاتفك",
   "Enter your password": "أدخل كلمة المرور",
   "Forgot Password?": "هل نسيت كلمة المرور؟",
   "Don't have an account?": "ليس لديك حساب؟",

@@ -117,14 +117,14 @@ export function Login() {
         }}
       >
         <Input
-          label={t("Email or Phone Number")}
+          label={t("Email")}
           icon={EnvelopeSimple}
-          placeholder={t("Enter your email or phone")}
+          placeholder={t("Enter your email")}
           type="email"
           required
           value={id}
           onChange={(e) => setId(e.target.value)}
-          autoComplete="username"
+          autoComplete="email"
         />
         <Input
           label={t("Password")}

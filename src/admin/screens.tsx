@@ -644,7 +644,7 @@ export function AdminCustomers() {
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
   const list = customers.filter((c) =>
-    `${c.business} ${c.contact} ${c.email}`.toLowerCase().includes(needle),
+    `${c.business} ${c.contact} ${c.email} ${c.phone}`.toLowerCase().includes(needle),
   );
 
   const stats = (userId: string) => {
@@ -671,7 +671,15 @@ export function AdminCustomers() {
     >
       <Table
         endLast
-        columns={[t("Customer"), t("Type"), t("Orders (30 days)"), t("Last order"), t("Status")]}
+        columns={[
+          t("Customer"),
+          t("Type"),
+          t("Phone"),
+          t("Email"),
+          t("Orders (30 days)"),
+          t("Last order"),
+          t("Status"),
+        ]}
         rows={list.map((customer) => {
           const { recent, last } = stats(customer.userId);
           return {
@@ -679,6 +687,12 @@ export function AdminCustomers() {
             cells: [
               customer.business || customer.contact || customer.email,
               t(customer.type),
+              <span key="p" dir="ltr">
+                {customer.phone || "—"}
+              </span>,
+              <span key="e" dir="ltr">
+                {customer.email}
+              </span>,
               String(recent),
               last ? t(last.slotShort) : "—",
               <Badge key="s" tone={recent > 0 ? "info" : "muted"}>
