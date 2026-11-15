@@ -198,3 +198,49 @@ There is no username in the app: an account is identified by its email.
 The admin customers table now carries Phone and Email columns, so the
 operations team can reach a customer from the list instead of opening their
 page, and the search box matches the phone number as well.
+
+## Sign in with a username
+
+**Files:** `src/store/index.tsx`, `src/customer/auth.tsx`, `src/customer/profile.tsx`,
+`src/admin/screens.tsx`, `src/i18n/ar.ts`
+
+Customers sign up with their email as before, and now also choose a username.
+Sign-in accepts either one: anything with an `@` is taken as an email, anything
+else is looked up as a username and swapped for that account's email before
+signing in.
+
+Neon's managed auth has no username plugin (supported plugins are email and
+password, social OAuth, email OTP, admin, organization, JWT, magic link and
+phone number), so the username is a field on the customer's profile with a
+unique index, not a second identity. That keeps it changeable, leaves existing
+accounts working, and leaves email-based password reset available later.
+
+- Sign-up step 2 has a Username field, validated as 3–20 characters of letters,
+  numbers, dots, dashes and underscores, lowercased as it is typed.
+- The name is checked for availability before the account is created, so a
+  taken username never leaves an account behind. The unique index is still the
+  final guard.
+- Profile → Business details lets a customer change their username. That screen
+  now waits for the save and shows what went wrong instead of leaving the page
+  on a failure, which it did before.
+- The admin customers table has a Username column, the customer's own page
+  shows it, and the search box matches it.
+
+### Database
+
+- `profiles.username`, with a unique index on `lower(username)` that ignores
+  empty and missing values.
+- `public.email_for_username(text)` — returns the email behind a username, for
+  sign-in. Callable by a visitor who is not signed in yet, which it has to be.
+- `public.username_available(text)` — the availability check.
+
+Already applied; nothing to upload for this part. Existing accounts were given
+usernames: `seema`, `testclinic`, `ammanhotel`, `ops`, `ops2`. The two accounts
+on `me@gmail.com` and `ahb.ahb22@gmail.com` have none yet and sign in by email
+until a username is set from their profile screen.
+
+### Worth knowing
+
+`email_for_username` is reachable without signing in, so someone guessing
+usernames could learn the matching email address. That is the cost of keeping
+the email as the account's identity, and it was the accepted trade-off.

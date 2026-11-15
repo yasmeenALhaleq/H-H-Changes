@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Check, EnvelopeSimple } from "@phosphor-icons/react";
 import logo from "@/assets/hh-logo.png";
 import { useI18n } from "@/i18n";
-import { useStore, type CustomerType } from "@/store";
+import { usernameProblem, useStore, type CustomerType } from "@/store";
 import { Footer, MobileHeader, Screen } from "@/components/mobile";
 import { Button, Chips, cx, Input, LanguageSwitch, LinkButton, RadioDot } from "@/components/ui";
 
@@ -117,14 +117,14 @@ export function Login() {
         }}
       >
         <Input
-          label={t("Email")}
+          label={t("Username or Email")}
           icon={EnvelopeSimple}
-          placeholder={t("Enter your email")}
-          type="email"
+          placeholder={t("Enter your username or email")}
+          dir="ltr"
           required
           value={id}
           onChange={(e) => setId(e.target.value)}
-          autoComplete="email"
+          autoComplete="username"
         />
         <Input
           label={t("Password")}
@@ -169,6 +169,7 @@ export function SignUp() {
     phone: "",
     email: "",
     address: "",
+    username: "",
   });
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -176,7 +177,13 @@ export function SignUp() {
   const set = (patch: Partial<typeof form>) => setForm((prev) => ({ ...prev, ...patch }));
 
   const emailOk = /^\S+@\S+\.\S+$/.test(form.email.trim());
-  const canCreate = emailOk && password.length >= 8 && !mismatch && confirm.length > 0;
+  const usernameIssue = form.username.length > 0 ? usernameProblem(form.username) : null;
+  const canCreate =
+    emailOk &&
+    !usernameProblem(form.username) &&
+    password.length >= 8 &&
+    !mismatch &&
+    confirm.length > 0;
 
   // Phone verification by SMS is not wired yet, so a new account goes straight to "Account Verified".
   const createAccount = async () => {
@@ -186,6 +193,7 @@ export function SignUp() {
       ...form,
       business: form.business.trim(),
       email: form.email.trim(),
+      username: form.username.trim(),
       password,
     });
     setBusy(false);
@@ -268,6 +276,15 @@ export function SignUp() {
             placeholder={t("Enter your email")}
             value={form.email}
             onChange={(e) => set({ email: e.target.value })}
+          />
+          <Input
+            label={t("Username")}
+            dir="ltr"
+            autoComplete="username"
+            placeholder={t("Choose a username to sign in with")}
+            value={form.username}
+            error={usernameIssue ? t(usernameIssue) : false}
+            onChange={(e) => set({ username: e.target.value.toLowerCase() })}
           />
           <Input
             label={t("Business Address")}

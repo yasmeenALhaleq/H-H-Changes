@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, Clock, Globe, MapPin, Phone, Question, Users } from "@phosphor-icons/react";
 import { useI18n, type Lang } from "@/i18n";
-import { useStore, type CustomerType, type NotificationPrefs } from "@/store";
+import { usernameProblem, useStore, type CustomerType, type NotificationPrefs } from "@/store";
 import { initials } from "@/store/format";
 import { callCompany, canCall, whatsappCompany } from "@/lib/company";
 import { Footer, MobileHeader, Screen } from "@/components/mobile";
@@ -97,21 +97,35 @@ export function BusinessInformation() {
   const { t } = useI18n();
   const { account, setAccount } = useStore();
   const [form, setForm] = useState(account);
-  const set = (patch: Partial<typeof form>) => setForm((prev) => ({ ...prev, ...patch }));
+  const [failure, setFailure] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const set = (patch: Partial<typeof form>) => {
+    setForm((prev) => ({ ...prev, ...patch }));
+    setFailure(null);
+  };
+  const usernameIssue = form.username.length > 0 ? usernameProblem(form.username) : null;
+
+  const save = async () => {
+    setBusy(true);
+    const result = await setAccount({
+      ...form,
+      business: form.business.trim() || account.business,
+      username: form.username.trim(),
+    });
+    setBusy(false);
+    if (result) setFailure(result);
+    else navigate(-1);
+  };
+
   return (
     <Screen
       header={<MobileHeader title={t("Business Information")} back />}
       bodyClassName="gap-3.5 px-6 py-4"
       footer={
         <Footer>
-          <Button
-            full
-            onClick={() => {
-              void setAccount({ ...form, business: form.business.trim() || account.business });
-              navigate(-1);
-            }}
-          >
-            {t("Save Changes")}
+          {failure && <p className="mb-2 text-[13px] text-err">{failure}</p>}
+          <Button full disabled={busy || !!usernameIssue} onClick={() => void save()}>
+            {busy ? t("Saving…") : t("Save Changes")}
           </Button>
         </Footer>
       }
@@ -148,6 +162,15 @@ export function BusinessInformation() {
         placeholder="name@example.com"
         value={form.email}
         onChange={(e) => set({ email: e.target.value })}
+      />
+      <Input
+        label={t("Username")}
+        dir="ltr"
+        autoComplete="username"
+        placeholder={t("Choose a username to sign in with")}
+        value={form.username}
+        error={usernameIssue ? t(usernameIssue) : false}
+        onChange={(e) => set({ username: e.target.value.toLowerCase() })}
       />
       <Input
         label={t("Business Address")}

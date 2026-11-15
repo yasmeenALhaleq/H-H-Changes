@@ -644,7 +644,7 @@ export function AdminCustomers() {
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
   const list = customers.filter((c) =>
-    `${c.business} ${c.contact} ${c.email} ${c.phone}`.toLowerCase().includes(needle),
+    `${c.business} ${c.contact} ${c.email} ${c.phone} ${c.username}`.toLowerCase().includes(needle),
   );
 
   const stats = (userId: string) => {
@@ -673,6 +673,7 @@ export function AdminCustomers() {
         endLast
         columns={[
           t("Customer"),
+          t("Username"),
           t("Type"),
           t("Phone"),
           t("Email"),
@@ -686,6 +687,9 @@ export function AdminCustomers() {
             key: customer.userId,
             cells: [
               customer.business || customer.contact || customer.email,
+              <span key="u" dir="ltr">
+                {customer.username || "—"}
+              </span>,
               t(customer.type),
               <span key="p" dir="ltr">
                 {customer.phone || "—"}
@@ -738,6 +742,10 @@ export function AdminCustomerDetails() {
         <Panel title={t("Business profile")} className="flex flex-col gap-1 p-6">
           <KeyValue label={t("Customer type")} value={t(customer.type)} />
           <KeyValue label={t("Contact person")} value={customer.contact || "—"} />
+          <KeyValue
+            label={t("Username")}
+            value={<span dir="ltr">{customer.username || "—"}</span>}
+          />
           <KeyValue label={t("Phone")} value={<span dir="ltr">{customer.phone || "—"}</span>} />
           <KeyValue label={t("Email")} value={customer.email} />
           <KeyValue label={t("Main address")} value={customer.address || "—"} />

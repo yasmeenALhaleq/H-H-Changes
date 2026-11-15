@@ -383,6 +383,17 @@ export const ar: Record<string, string> = {
   "Working hours": "ساعات العمل",
   "Call Us": "اتصل بنا",
   "Number not set yet": "الرقم غير مضاف بعد",
+  Username: "اسم المستخدم",
+  "Username or Email": "اسم المستخدم أو البريد الإلكتروني",
+  "Enter your username or email": "أدخل اسم المستخدم أو بريدك الإلكتروني",
+  "Choose a username to sign in with": "اختر اسم مستخدم للدخول",
+  "Choose a username.": "اختر اسم مستخدم.",
+  "Use at least 3 characters.": "استخدم 3 أحرف على الأقل.",
+  "Use 20 characters at most.": "استخدم 20 حرفاً كحد أقصى.",
+  "Use letters, numbers, dots, dashes and underscores only.":
+    "استخدم الحروف والأرقام والنقطة والشرطة والشرطة السفلية فقط.",
+  "That username is taken. Try another one.": "اسم المستخدم محجوز. جرّب اسماً آخر.",
+  "No account with that username.": "ما في حساب بهذا اسم المستخدم.",
   "Reward order {n} applied": "تم تطبيق مكافأة الطلب {n}",
   "{p}% discount on the full order total — customer notified":
     "خصم {p}% على إجمالي الطلب — تم إشعار العميل",

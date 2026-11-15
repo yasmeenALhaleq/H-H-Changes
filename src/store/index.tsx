@@ -205,7 +205,26 @@ export type Account = {
   phone: string;
   email: string;
   address: string;
+  /** Short name the customer signs in with. Empty on an older account. */
+  username: string;
 };
+
+/** Trims and lowercases a username so it is stored and looked up the same way. */
+export const normalizeUsername = (value: string) => value.trim().toLowerCase();
+
+/** Letters, digits, dot, dash and underscore, 3 to 20 characters. */
+export const USERNAME_PATTERN = /^[a-z0-9._-]{3,20}$/;
+
+/** Checks a username's shape; returns the message to show, or null when it is fine. */
+export function usernameProblem(value: string): string | null {
+  const name = normalizeUsername(value);
+  if (!name) return "Choose a username.";
+  if (name.length < 3) return "Use at least 3 characters.";
+  if (name.length > 20) return "Use 20 characters at most.";
+  if (!USERNAME_PATTERN.test(name))
+    return "Use letters, numbers, dots, dashes and underscores only.";
+  return null;
+}
 
 export type Address = { id: string; label: string; line: string; city: string; notes?: string };
 
@@ -239,7 +258,10 @@ type Failure = string | null;
 
 type Store = {
   session: Session;
-  signIn: (email: string, password: string) => Promise<Failure>;
+  /** Accepts a username or an email address. */
+  signIn: (login: string, password: string) => Promise<Failure>;
+  /** True when no other account holds this username. */
+  usernameFree: (username: string) => Promise<boolean>;
   signUp: (input: SignUpInput) => Promise<Failure>;
   signOut: () => Promise<void>;
   account: Account;
@@ -287,6 +309,7 @@ const emptyAccount: Account = {
   phone: "",
   email: "",
   address: "",
+  username: "",
 };
 
 const emptyDraft = (product: ProductId, addressId = ""): Draft => ({
@@ -301,7 +324,12 @@ const emptyDraft = (product: ProductId, addressId = ""): Draft => ({
 
 /* Database rows (snake_case) → app types */
 
-type ProfileRow = Account & { user_id: string; loyalty: number; created_at: string };
+type ProfileRow = Omit<Account, "username"> & {
+  user_id: string;
+  username: string | null;
+  loyalty: number;
+  created_at: string;
+};
 
 /** A customer account as the admin dashboard sees it. */
 export type Customer = Account & { userId: string; loyalty: number };
@@ -450,6 +478,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               phone: row.phone,
               email: row.email,
               address: row.address,
+              username: row.username ?? "",
               loyalty: row.loyalty,
             };
           })
@@ -475,6 +504,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             phone: row.phone,
             email: row.email,
             address: row.address,
+            username: row.username ?? "",
           }
         : { ...emptyAccount, email },
     );
@@ -562,8 +592,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return {
       session,
 
-      signIn: async (email, password) => {
+      signIn: async (login, password) => {
         try {
+          const entered = login.trim();
+          // Accounts are held by email, so a username is swapped for its email
+          // first. Anything with an @ is taken as an email as typed.
+          let email = entered;
+          if (!entered.includes("@")) {
+            const { data } = await neon.rpc("email_for_username", { p_username: entered });
+            if (typeof data !== "string" || !data) return "No account with that username.";
+            email = data;
+          }
           const result = await neon.auth.signIn.email({ email, password });
           if (result.error || !result.data?.user) return errorMessage(result.error);
           await loadCustomer(result.data.user.id, result.data.user.email);
@@ -573,8 +612,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       },
 
-      signUp: async ({ password, ...profile }) => {
+      usernameFree: async (username) => {
         try {
+          const { data, error } = await neon.rpc("username_available", { p_username: username });
+          // On a failed check, let the unique index in the database decide.
+          return error ? true : data === true;
+        } catch {
+          return true;
+        }
+      },
+
+      signUp: async ({ password, ...input }) => {
+        try {
+          const profile = { ...input, username: normalizeUsername(input.username) };
+          const shape = usernameProblem(profile.username);
+          if (shape) return shape;
+          // Checked before the account is created, so a taken username does not
+          // leave an account behind. The unique index is still the real guard.
+          const { data: free } = await neon.rpc("username_available", {
+            p_username: profile.username,
+          });
+          if (free === false) return "That username is taken. Try another one.";
           // A leftover session would still own the access token the database
           // checks, so the new account's rows would be rejected. Start clean.
           await neon.auth.signOut().catch(() => {});
@@ -622,7 +680,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setAccount: async (patch) => {
         try {
           if (!userId) return "Not signed in";
-          const next = { ...account, ...patch };
+          const next = {
+            ...account,
+            ...patch,
+            username: normalizeUsername(patch.username ?? account.username),
+          };
+          if (next.username !== account.username) {
+            const shape = usernameProblem(next.username);
+            if (shape) return shape;
+            const { data: free } = await neon.rpc("username_available", {
+              p_username: next.username,
+            });
+            if (free === false) return "That username is taken. Try another one.";
+          }
           const { error } = await neon
             .from("profiles")
             .update({
@@ -632,6 +702,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               phone: next.phone,
               email: next.email,
               address: next.address,
+              username: next.username || null,
             })
             .eq("user_id", userId);
           if (error) return errorMessage(error);
