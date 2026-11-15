@@ -4,13 +4,7 @@ import { Bell, Clock, Globe, MapPin, Phone, Question, Users } from "@phosphor-ic
 import { useI18n, type Lang } from "@/i18n";
 import { useStore, type CustomerType, type NotificationPrefs } from "@/store";
 import { initials } from "@/store/format";
-import {
-  callCompany,
-  COMPANY_HOURS,
-  COMPANY_PHONE,
-  hasPhone,
-  whatsappCompany,
-} from "@/lib/company";
+import { callCompany, canCall, whatsappCompany } from "@/lib/company";
 import { Footer, MobileHeader, Screen } from "@/components/mobile";
 import {
   Avatar,
@@ -279,13 +273,16 @@ export function LanguageSettings() {
 /* Profile — Help & Contact */
 export function HelpContact() {
   const { t } = useI18n();
+  const { settings } = useStore();
+  const phone = settings.contactPhone.trim();
+  const reachable = canCall(phone);
   return (
     <Screen
       header={<MobileHeader title={t("Help & Contact")} back />}
       bodyClassName="gap-3 px-6 py-4"
       footer={
         <Footer>
-          <Button full disabled={!hasPhone} onClick={callCompany}>
+          <Button full disabled={!reachable} onClick={() => callCompany(phone)}>
             {t("Call Us")}
           </Button>
         </Footer>
@@ -297,16 +294,20 @@ export function HelpContact() {
       <ListRow
         icon={Phone}
         title={t("Phone")}
-        subtitle={hasPhone ? COMPANY_PHONE : t("Number not set yet")}
-        onClick={hasPhone ? callCompany : undefined}
+        subtitle={reachable ? phone : t("Number not set yet")}
+        onClick={reachable ? () => callCompany(phone) : undefined}
       />
       <ListRow
         icon={Phone}
         title={t("WhatsApp")}
         subtitle={t("Chat with our team")}
-        onClick={hasPhone ? whatsappCompany : undefined}
+        onClick={reachable ? () => whatsappCompany(phone) : undefined}
       />
-      <ListRow icon={Clock} title={t("Working hours")} subtitle={COMPANY_HOURS} />
+      <ListRow
+        icon={Clock}
+        title={t("Working hours")}
+        subtitle={`${settings.opening} – ${settings.closing}`}
+      />
     </Screen>
   );
 }

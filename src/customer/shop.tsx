@@ -22,8 +22,6 @@ import {
   priceOrder,
   PRODUCT_LIST,
   PRODUCTS,
-  REWARD_EVERY,
-  REWARD_PERCENT,
   useStore,
   type JarSize,
   type Order,
@@ -122,17 +120,23 @@ export function OrderCard({ order }: { order: Order }) {
 
 function LoyaltyCard() {
   const { t } = useI18n();
-  const { loyalty, rewardReady } = useStore();
+  const { loyalty, rewardReady, settings } = useStore();
   return (
     <section className="flex flex-col gap-2 rounded-[12px] border border-gold-deep bg-surface px-4 pt-2.5 pb-2.5">
       <h2 className="text-[14px] font-semibold text-ink">{t("Loyalty Rewards")}</h2>
       <p className="text-[12px] text-gold-deep">
         {rewardReady
-          ? t("{n} orders done — 25% off your next order", { n: loyalty })
-          : t("{n} / 5 completed orders", { n: loyalty })}
+          ? t("{n} orders done — {p}% off your next order", {
+              n: loyalty,
+              p: settings.rewardPercent,
+            })
+          : t("{n} / {total} completed orders", { n: loyalty, total: settings.rewardEvery })}
       </p>
-      <div className="mt-1 grid grid-cols-5 gap-2">
-        {Array.from({ length: REWARD_EVERY }, (_, i) => (
+      <div
+        className="mt-1 grid gap-2"
+        style={{ gridTemplateColumns: `repeat(${settings.rewardEvery}, minmax(0, 1fr))` }}
+      >
+        {Array.from({ length: settings.rewardEvery }, (_, i) => (
           <span
             key={i}
             className={cx("h-[5px] rounded-[3px]", i < loyalty ? "bg-gold-deep" : "bg-line")}
@@ -345,10 +349,10 @@ export function ProductDetails() {
 function DryIceDetails() {
   const navigate = useNavigate();
   const { t, money } = useI18n();
-  const { startDraft } = useStore();
+  const { startDraft, settings } = useStore();
   const product = PRODUCTS["dry-ice"];
   const [qty, setQty] = useState(product.detailQty);
-  const pricing = priceOrder("dry-ice", qty);
+  const pricing = priceOrder("dry-ice", qty, "3L", false, settings);
   return (
     <Screen
       header={<MobileHeader title={t(product.name)} back />}
@@ -527,13 +531,13 @@ function useDateOptions(): DateOption[] {
 
 function useDraftSummary() {
   const { t, money } = useI18n();
-  const { draft, addresses, rewardReady } = useStore();
+  const { draft, addresses, rewardReady, settings } = useStore();
   const dates = useDateOptions();
   const product = PRODUCTS[draft.product];
   const unit = t(product.unit === "kg" ? "Kg" : "L");
   const address = addresses.find((a) => a.id === draft.addressId) ?? addresses[0];
   const date = dates.find((d) => d.value === draft.date);
-  const pricing = priceOrder(draft.product, draft.qty, draft.jar, rewardReady);
+  const pricing = priceOrder(draft.product, draft.qty, draft.jar, rewardReady, settings);
   const proposed = (amount: number | null) =>
     amount === null ? t("To be confirmed") : t("{a} (proposed)", { a: money(amount) });
   return {
@@ -856,6 +860,7 @@ export function RewardCelebration() {
   const { uid } = useParams();
   const navigate = useNavigate();
   const { t } = useI18n();
+  const { settings } = useStore();
   const sparkles = [
     "top-[18px] start-12 size-2",
     "top-[30px] end-[61px] size-[13px]",
@@ -875,9 +880,11 @@ export function RewardCelebration() {
       ))}
       <section className="flex w-full flex-col items-center rounded-[20px] border border-gold-deep bg-surface px-5 pt-11 pb-3 text-center">
         <h1 className="text-[24px] font-semibold text-gold-deep">{t("Congratulations!")}</h1>
-        <p className="mt-6 text-[17px] font-semibold text-ink">{t("You reached your 5th order")}</p>
+        <p className="mt-6 text-[17px] font-semibold text-ink">
+          {t("You reached {n} orders", { n: settings.rewardEvery })}
+        </p>
         <p className="mt-7 text-[54px] leading-[1.2] font-semibold text-gold-deep">
-          {REWARD_PERCENT}%
+          {settings.rewardPercent}%
         </p>
         <p className="mt-3 text-[14px] text-ink">{t("OFF your full order total")}</p>
         <p className="mt-5 text-[12px] text-ink-2">

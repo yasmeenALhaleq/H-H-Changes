@@ -132,3 +132,54 @@ Oxygen pricing: quantity is in litres while the jar price is per jar, so an 8L
 jar ordered as 3 L is charged 15 JOD — less than the 3L jar's own 18 JOD.
 Waiting on the company's decision: price per jar, or force the quantity into
 multiples of the jar size.
+
+## Company settings now live in the admin dashboard
+
+Everything on the Settings page is saved to Neon and read by the customer app,
+so the operations team changes it from the dashboard — no code, no publish.
+
+**Upload these eight files together, then Publish:**
+
+- `src/store/index.tsx`
+- `src/admin/screens.tsx`
+- `src/admin/data.tsx`
+- `src/customer/shop.tsx`
+- `src/customer/orders.tsx`
+- `src/customer/profile.tsx`
+- `src/i18n/ar.ts`
+- `src/lib/company.ts`
+
+### What the admin now controls
+
+| Setting | Where the customer sees it |
+|---|---|
+| Company phone number | Help & Contact — the phone row, the Call button, WhatsApp |
+| Opening / closing time | Help & Contact — working hours |
+| Delivery fee | Every order total and the order summary |
+| Delivery window | Length of a delivery slot |
+| Completed orders required | The loyalty card and its progress bars, on both sides |
+| Reward discount | The loyalty card, the reward screen, the admin reward banner |
+| Alert toggles | Saved for the notification work still to come |
+
+Before this, the Settings page kept its values in the browser only: they reset
+on reload and the customer app never saw them. The loyalty numbers the customer
+read (every 5 orders, 25% off) were fixed in the code, in the English and Arabic
+copy as well, so changing them meant editing text in two languages.
+
+### Database
+
+- New table `public.settings`, one row, readable by any signed-in account.
+- `public.admin_save_settings(...)` — the only way to write it, and it refuses
+  anyone without the admin role. Verified: the call is rejected even straight
+  from the Neon console.
+- `public.orders_loyalty()` now reads `reward_every` from the settings instead
+  of the fixed 4, and the `profiles.loyalty` range check no longer caps at 4, so
+  a longer reward cycle works.
+
+All of it is already applied to the database — nothing to upload for this part.
+
+### Copy that became dynamic
+
+"{n} / 5 completed orders", "25% off your next order", "You reached your 5th
+order", "This is {name}'s 5th order" and the rest now carry the real numbers as
+placeholders, in both languages.

@@ -92,33 +92,14 @@ export const availabilityTone: Record<Driver["availability"], BadgeTone> = {
   "Off duty": "muted",
 };
 
-export type AdminSettings = {
-  opening: string;
-  closing: string;
-  deliveryWindow: string;
-  newOrderAlerts: boolean;
-  cancellationAlerts: boolean;
-  lowStockAlerts: boolean;
-  rewardThreshold: string;
-  rewardDiscount: string;
-};
-
-const seedSettings: AdminSettings = {
-  opening: "08:00",
-  closing: "18:00",
-  deliveryWindow: "2",
-  newOrderAlerts: true,
-  cancellationAlerts: true,
-  lowStockAlerts: false,
-  rewardThreshold: "5",
-  rewardDiscount: "25",
-};
-
+/**
+ * Company settings live in the database and are reached through the main store
+ * (`useStore().settings` / `saveSettings`), so every customer sees the same
+ * values. This provider only holds what has not been moved there yet.
+ */
 type AdminState = {
   products: AdminProduct[];
   saveProduct: (product: AdminProduct) => void;
-  settings: AdminSettings;
-  saveSettings: (settings: AdminSettings) => void;
   /** Reward orders whose notification the admin has already dismissed. */
   seenRewards: string[];
   markRewardSeen: (uid: string) => void;
@@ -128,7 +109,6 @@ const AdminContext = createContext<AdminState | null>(null);
 
 export function AdminProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState(seedProducts);
-  const [settings, setSettings] = useState(seedSettings);
   const [seenRewards, setSeenRewards] = useState<string[]>([]);
 
   const value = useMemo<AdminState>(
@@ -140,13 +120,11 @@ export function AdminProvider({ children }: { children: ReactNode }) {
             ? prev.map((p) => (p.id === product.id ? product : p))
             : [...prev, product],
         ),
-      settings,
-      saveSettings: setSettings,
       seenRewards,
       markRewardSeen: (uid) =>
         setSeenRewards((prev) => (prev.includes(uid) ? prev : [...prev, uid])),
     }),
-    [products, settings, seenRewards],
+    [products, seenRewards],
   );
 
   return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>;

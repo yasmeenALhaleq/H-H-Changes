@@ -32,11 +32,43 @@ export type Product = {
   description: string;
 };
 
-/** Delivery is included in the proposed prices, so no separate fee is added to totals. */
-export const DELIVERY_FEE = 0;
 export const JAR_PRICE: Record<JarSize, number> = { "3L": 18, "8L": 40 };
-export const REWARD_EVERY = 5;
-export const REWARD_PERCENT = 25;
+
+/**
+ * Company settings, kept in the database so the operations team changes them
+ * from the admin dashboard — no code change, no publish.
+ */
+export type Settings = {
+  /** Phone number for the Help & Contact screen; empty until the team sets it. */
+  contactPhone: string;
+  opening: string;
+  closing: string;
+  /** Added to every order total. Zero means delivery is included in the prices. */
+  deliveryFee: number;
+  /** Length of a delivery slot, in hours. */
+  deliveryWindow: number;
+  /** Delivered orders needed before the discount is earned. */
+  rewardEvery: number;
+  /** Discount on the reward order, as a percentage. */
+  rewardPercent: number;
+  notifyNewOrder: boolean;
+  notifyCancellation: boolean;
+  notifyLowStock: boolean;
+};
+
+/** Used until the real settings arrive from the database, and if the read fails. */
+export const DEFAULT_SETTINGS: Settings = {
+  contactPhone: "",
+  opening: "08:00",
+  closing: "18:00",
+  deliveryFee: 0,
+  deliveryWindow: 2,
+  rewardEvery: 5,
+  rewardPercent: 25,
+  notifyNewOrder: true,
+  notifyCancellation: true,
+  notifyLowStock: false,
+};
 
 export const PRODUCTS: Record<ProductId, Product> = {
   "dry-ice": {
@@ -92,17 +124,23 @@ export type Pricing = {
   total: number | null;
 };
 
+/**
+ * Works out what an order costs. The delivery fee and the reward discount come
+ * from the company settings, so pass the live ones in; the defaults keep the
+ * figures sane if a caller has none to hand.
+ */
 export function priceOrder(
   product: ProductId,
   qty: number,
   jar: JarSize = "3L",
   reward = false,
+  settings: Pick<Settings, "deliveryFee" | "rewardPercent"> = DEFAULT_SETTINGS,
 ): Pricing {
   const unit = unitPrice(product, jar);
   if (unit === null) return { unit, subtotal: null, discount: 0, total: null };
   const subtotal = unit * qty;
-  const gross = subtotal + DELIVERY_FEE;
-  const discount = reward ? (gross * REWARD_PERCENT) / 100 : 0;
+  const gross = subtotal + settings.deliveryFee;
+  const discount = reward ? (gross * settings.rewardPercent) / 100 : 0;
   return { unit, subtotal, discount, total: gross - discount };
 }
 
@@ -234,6 +272,10 @@ type Store = {
   /** Admin actions on any customer's order. */
   setOrderStatus: (uid: string, status: OrderStatus) => Promise<Failure>;
   assignDriver: (uid: string, driver: string) => Promise<Failure>;
+  /** Company settings, as the operations team has saved them. */
+  settings: Settings;
+  /** Admin only — writes the settings back to the database. */
+  saveSettings: (next: Settings) => Promise<Failure>;
 };
 
 const StoreContext = createContext<Store | null>(null);
@@ -282,6 +324,32 @@ type OrderRow = {
   created_at: string;
   updated_at: string;
 };
+
+type SettingsRow = {
+  contact_phone: string;
+  opening: string;
+  closing: string;
+  delivery_fee: number | string;
+  delivery_window: number;
+  reward_every: number;
+  reward_percent: number;
+  notify_new_order: boolean;
+  notify_cancellation: boolean;
+  notify_low_stock: boolean;
+};
+
+const toSettings = (row: SettingsRow): Settings => ({
+  contactPhone: row.contact_phone ?? "",
+  opening: row.opening,
+  closing: row.closing,
+  deliveryFee: Number(row.delivery_fee),
+  deliveryWindow: row.delivery_window,
+  rewardEvery: row.reward_every,
+  rewardPercent: row.reward_percent,
+  notifyNewOrder: row.notify_new_order,
+  notifyCancellation: row.notify_cancellation,
+  notifyLowStock: row.notify_low_stock,
+});
 
 /** `14 Nov, 16:33` — when a finished order was delivered or cancelled. */
 const closedLabel = (iso: string): string => {
@@ -340,6 +408,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loyalty, setLoyalty] = useState(0);
   const [draft, setDraftState] = useState<Draft>(emptyDraft("dry-ice"));
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
 
   /** Loads the signed-in account's profile, addresses and orders (all orders for an admin). */
   const loadCustomer = useCallback(async (userId: string, email: string) => {
@@ -353,14 +422,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         neon.from("addresses").select("*").order("created_at", { ascending: true }),
         neon.from("orders").select("*").order("created_at", { ascending: false }),
         neon.rpc("is_admin"),
+        neon.from("settings").select("*").eq("id", 1).maybeSingle(),
       ]);
-    let [profile, addressRows, orderRows, admin] = await read();
+    let [profile, addressRows, orderRows, admin, settingsRow] = await read();
     // No profile row means the token was not accepted — the account always has one.
     // Give it one more try before showing the account as empty.
     if (!profile.data) {
       await new Promise((resolve) => setTimeout(resolve, 700));
-      [profile, addressRows, orderRows, admin] = await read();
+      [profile, addressRows, orderRows, admin, settingsRow] = await read();
     }
+    if (settingsRow.data) setSettings(toSettings(settingsRow.data as SettingsRow));
     const admins = admin.data === true;
     setIsAdmin(admins);
     // An admin may read every profile; a customer only sees their own row.
@@ -467,7 +538,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const store = useMemo<Store>(() => {
     const orders = allOrders.map((o) => ({ ...o, mine: o.userId === activeUser, admin: isAdmin }));
     const myOrders = orders.filter((o) => o.mine);
-    const rewardReady = loyalty >= REWARD_EVERY - 1;
+    const rewardReady = loyalty >= settings.rewardEvery - 1;
     const userId = session.status === "user" ? session.userId : null;
 
     /** Admin change to an order, through the database function that checks the admin role. */
@@ -654,7 +725,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               address,
               slot,
               slot_short: slotShort,
-              total: priceOrder(draft.product, draft.qty, draft.jar, rewardReady).total,
+              total: priceOrder(draft.product, draft.qty, draft.jar, rewardReady, settings).total,
               note: draft.note || null,
               reward: rewardReady,
             })
@@ -689,9 +760,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       setOrderStatus: (uid, status) => adminUpdate(uid, { p_status: status }),
       assignDriver: (uid, driver) => adminUpdate(uid, { p_driver: driver }),
+
+      settings,
+      saveSettings: async (next) => {
+        try {
+          const { data, error } = await neon.rpc("admin_save_settings", {
+            p_contact_phone: next.contactPhone.trim(),
+            p_opening: next.opening,
+            p_closing: next.closing,
+            p_delivery_fee: next.deliveryFee,
+            p_delivery_window: next.deliveryWindow,
+            p_reward_every: next.rewardEvery,
+            p_reward_percent: next.rewardPercent,
+            p_notify_new_order: next.notifyNewOrder,
+            p_notify_cancellation: next.notifyCancellation,
+            p_notify_low_stock: next.notifyLowStock,
+          });
+          if (error || !data) return errorMessage(error);
+          setSettings(toSettings(data as SettingsRow));
+          return null;
+        } catch (error) {
+          return errorMessage(error);
+        }
+      },
     };
   }, [
     session,
+    settings,
     account,
     addresses,
     notifications,

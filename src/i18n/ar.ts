@@ -159,8 +159,8 @@ export const ar: Record<string, string> = {
   "Al Noor Clinic": "عيادة النور",
   "Clinic Name": "اسم العيادة",
   "Loyalty Rewards": "مكافآت الولاء",
-  "{n} orders done — 25% off your next order": "أنجزت {n} طلبات — خصم 25% على طلبك القادم",
-  "{n} / 5 completed orders": "{n} / 5 طلبات مكتملة",
+  "{n} orders done — {p}% off your next order": "أنجزت {n} طلبات — خصم {p}% على طلبك القادم",
+  "{n} / {total} completed orders": "{n} / {total} طلبات مكتملة",
   "New Order": "طلب جديد",
   "Order Oxygen, Nitrogen or Dry Ice": "اطلب الأكسجين أو النيتروجين أو الثلج الجاف",
   "Order Now": "اطلب الآن",
@@ -263,7 +263,7 @@ export const ar: Record<string, string> = {
   Reorder: "إعادة الطلب",
   "Back to Home": "العودة إلى الرئيسية",
   "Congratulations!": "مبروك!",
-  "You reached your 5th order": "وصلت إلى طلبك الخامس",
+  "You reached {n} orders": "وصلت إلى {n} طلبات",
   "OFF your full order total": "خصم على كامل قيمة الطلب",
   "Your reward is applied automatically. Delivery is included.":
     "تم تطبيق الخصم تلقائياً، والتوصيل مشمول بالسعر.",
@@ -385,6 +385,23 @@ export const ar: Record<string, string> = {
   "Working hours": "ساعات العمل",
   "Call Us": "اتصل بنا",
   "Number not set yet": "الرقم غير مضاف بعد",
+  "Reward order {n} applied": "تم تطبيق مكافأة الطلب {n}",
+  "{p}% discount on the full order total — customer notified":
+    "خصم {p}% على إجمالي الطلب — تم إشعار العميل",
+  "This is order {n} for {name}.": "هذا هو الطلب {n} لـ {name}.",
+  "Discount applies to the full order total. After redemption, the cycle resets.":
+    "يُطبق الخصم على إجمالي الطلب. وبعد استخدامه تبدأ الدورة من جديد.",
+  Contact: "التواصل",
+  "Company phone number": "رقم هاتف الشركة",
+  "Customers call and message this number from Help & Contact in the app.":
+    "العملاء يتصلون ويراسلون على هذا الرقم من صفحة المساعدة والتواصل في التطبيق.",
+  "Delivery fee (JOD)": "أجرة التوصيل (دينار)",
+  "Enter 0 or more.": "أدخل 0 أو أكثر.",
+  "Enter a number between 1 and 24.": "أدخل رقماً بين 1 و 24.",
+  "Enter a number between 2 and 50.": "أدخل رقماً بين 2 و 50.",
+  "Enter a number between 1 and 100.": "أدخل رقماً بين 1 و 100.",
+  "Settings saved for everyone.": "تم حفظ الإعدادات للجميع.",
+  "Saving…": "جارٍ الحفظ…",
 
   "We could not place your order. Check your connection and try again.":
     "تعذّر إرسال طلبك. تحقق من الاتصال وحاول مرة أخرى.",
@@ -481,13 +498,9 @@ export const ar: Record<string, string> = {
   "3. Cancel only while Pending or Confirmed.":
     "3. يمكن الإلغاء فقط عندما تكون الحالة قيد الانتظار أو مؤكدة.",
   "Pricing (proposed)": "التسعير (مقترح)",
-  "5th Order Reward Applied": "مكافأة الطلب الخامس مفعّلة",
-  "25% discount on the full order total — customer notified":
-    "خصم 25% على كامل قيمة الطلب — تم إشعار العميل",
   "New Loyalty Reward": "مكافأة ولاء جديدة",
-  "This is {name}’s 5th order.": "هذا هو الطلب الخامس لـ{name}.",
-  "A 25% discount has been applied to the full order total.":
-    "تم تطبيق خصم 25% على كامل قيمة الطلب.",
+  "A {p}% discount has been applied to the full order total.":
+    "تم تطبيق خصم {p}% على كامل قيمة الطلب.",
   "View Order": "عرض الطلب",
   "Search customers": "ابحث عن العملاء",
   Type: "النوع",
@@ -504,7 +517,7 @@ export const ar: Record<string, string> = {
   "Spend (proposed)": "الإنفاق (مقترح)",
   "Order history": "سجل الطلبات",
   "Delivered / Slot": "التوصيل / الموعد",
-  "{n} of 5 completed orders": "{n} من 5 طلبات مكتملة",
+  "{n} of {total} completed orders": "{n} من {total} طلبات مكتملة",
   "1 more completed order to unlock 25% off.": "طلب واحد متبقٍ للحصول على خصم 25%.",
   "To dispatch ({n})": "جاهز للإرسال ({n})",
   "Out for delivery ({n})": "خرج للتوصيل ({n})",
@@ -534,7 +547,6 @@ export const ar: Record<string, string> = {
   "Closing time": "وقت الإغلاق",
   "Closing time must be after opening time.": "يجب أن يكون وقت الإغلاق بعد وقت الافتتاح.",
   Delivery: "التوصيل",
-  "Delivery pricing": "التوصيل مشمول بالسعر",
   "Delivery window (hours)": "مدة التوصيل (بالساعات)",
   "New order alerts": "تنبيهات الطلبات الجديدة",
   "Cancellation alerts": "تنبيهات الإلغاء",
@@ -542,12 +554,10 @@ export const ar: Record<string, string> = {
   Discard: "تجاهل",
   "Save changes": "حفظ التغييرات",
   "Loyalty Rewards Program": "برنامج مكافآت الولاء",
-  "After 4 completed orders, the 5th order gets 25% off.":
-    "بعد إكمال 4 طلبات، يحصل العميل على خصم 25% على الطلب الخامس.",
+  "After {n} completed orders, the next order gets {p}% off.":
+    "بعد إكمال {n} طلبات، يحصل العميل على خصم {p}% على الطلب التالي.",
   "Completed orders required": "عدد الطلبات المطلوبة",
   "Reward discount": "نسبة الخصم",
-  "Discount applies to the full order total; delivery is included. After redemption, the 5-order cycle resets.":
-    "يُحتسب الخصم على كامل قيمة الطلب والتوصيل مشمول. بعد استخدام المكافأة يبدأ عدّاد جديد من 5 طلبات.",
   "Prices shown are proposed and not final until confirmed by the company.":
     "الأسعار المعروضة تقديرية وليست نهائية حتى تؤكدها الشركة.",
 };

@@ -2,15 +2,7 @@ import { useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { MapPin, Package } from "@phosphor-icons/react";
 import { useI18n } from "@/i18n";
-import {
-  canCancel,
-  DELIVERY_FEE,
-  isActive,
-  PRODUCTS,
-  useStore,
-  type Order,
-  type OrderStatus,
-} from "@/store";
+import { canCancel, isActive, PRODUCTS, useStore, type Order, type OrderStatus } from "@/store";
 import { useOrderText } from "@/store/format";
 import { Footer, MobileHeader, Screen } from "@/components/mobile";
 import {
@@ -98,13 +90,13 @@ export function MyOrders() {
 export function OrderDetails() {
   const navigate = useNavigate();
   const { t, money } = useI18n();
-  const { startDraft } = useStore();
+  const { startDraft, settings } = useStore();
   const text = useOrderText();
   const order = useOrder();
   if (!order) return <Navigate to="/orders" replace />;
 
   const unit = t(PRODUCTS[order.product].unit);
-  const subtotal = order.total === null ? null : order.total - DELIVERY_FEE;
+  const subtotal = order.total === null ? null : order.total - settings.deliveryFee;
   const times =
     order.id === 1024
       ? ["Today · 09:02", "Today · 11:30", "Today · 13:20", "Estimated 14:30"]

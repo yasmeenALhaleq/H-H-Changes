@@ -8,12 +8,11 @@ import {
   priceOrder,
   PRODUCT_LIST,
   PRODUCTS,
-  REWARD_EVERY,
-  REWARD_PERCENT,
   STATUS_LABEL,
   useStore,
   type Order,
   type OrderStatus,
+  type Settings,
 } from "@/store";
 import { useOrderText } from "@/store/format";
 import {
@@ -466,7 +465,7 @@ export function AdminOrders() {
 export function AdminOrderDetails() {
   const { uid } = useParams();
   const { t, money } = useI18n();
-  const { setOrderStatus, assignDriver } = useStore();
+  const { setOrderStatus, assignDriver, settings } = useStore();
   const { seenRewards, markRewardSeen } = useAdmin();
   const text = useOrderText();
   const order = useAdminOrders().find((o) => o.uid === uid);
@@ -584,14 +583,16 @@ export function AdminOrderDetails() {
         <section className="flex items-center justify-between gap-6 rounded-[10px] border border-gold-deep bg-reward-bg px-[22px] py-3.5">
           <div className="flex flex-col gap-[18px] py-1">
             <h2 className="text-[18px] font-semibold text-gold-deep">
-              {t("5th Order Reward Applied")}
+              {t("Reward order {n} applied", { n: settings.rewardEvery })}
             </h2>
             <p className="text-[13px] text-ink">
-              {t("25% discount on the full order total — customer notified")}
+              {t("{p}% discount on the full order total — customer notified", {
+                p: settings.rewardPercent,
+              })}
             </p>
           </div>
           <span className="flex h-12 w-[150px] shrink-0 items-center justify-center rounded-[10px] bg-gold-deep text-[20px] font-semibold text-bg">
-            {REWARD_PERCENT}%
+            {settings.rewardPercent}%
           </span>
         </section>
       )}
@@ -604,16 +605,21 @@ export function AdminOrderDetails() {
         >
           <div className="flex w-full max-w-[520px] flex-col items-center rounded-[18px] border border-gold-deep bg-surface px-6 pt-6 pb-[22px] text-center">
             <span className="flex size-[52px] items-center justify-center rounded-full bg-gold-deep text-[18px] font-semibold text-bg">
-              {REWARD_PERCENT}%
+              {settings.rewardPercent}%
             </span>
             <h2 className="mt-4 text-[21px] font-semibold text-gold-deep">
               {t("New Loyalty Reward")}
             </h2>
             <p className="mt-6 text-[14px] text-ink">
-              {t("This is {name}’s 5th order.", { name: t(order.customer) })}
+              {t("This is order {n} for {name}.", {
+                n: settings.rewardEvery,
+                name: t(order.customer),
+              })}
             </p>
             <p className="mt-4 text-[13px] text-ink-2">
-              {t("A 25% discount has been applied to the full order total.")}
+              {t("A {p}% discount has been applied to the full order total.", {
+                p: settings.rewardPercent,
+              })}
             </p>
             <button
               type="button"
@@ -691,7 +697,7 @@ export function AdminCustomers() {
 export function AdminCustomerDetails() {
   const { id } = useParams();
   const { t, money } = useI18n();
-  const { customers } = useStore();
+  const { customers, settings } = useStore();
   const text = useOrderText();
   const orders = useAdminOrders();
   const customer = customers.find((c) => c.userId === id);
@@ -703,7 +709,7 @@ export function AdminCustomerDetails() {
   const spend = history
     .filter((o) => o.status !== "cancelled")
     .reduce((sum, o) => sum + (o.total ?? 0), 0);
-  const remaining = REWARD_EVERY - customer.loyalty;
+  const remaining = settings.rewardEvery - customer.loyalty;
 
   return (
     <AdminPage
@@ -750,10 +756,16 @@ export function AdminCustomerDetails() {
       <section className="flex flex-col gap-3.5 rounded-[10px] border border-line bg-surface px-[22px] pt-3 pb-5">
         <h2 className="text-[18px] font-semibold text-ink">{t("Loyalty Rewards")}</h2>
         <p className="text-[14px] text-gold-deep">
-          {t("{n} of 5 completed orders", { n: customer.loyalty })}
+          {t("{n} of {total} completed orders", {
+            n: customer.loyalty,
+            total: settings.rewardEvery,
+          })}
         </p>
-        <div className="grid max-w-[936px] grid-cols-5 gap-3.5">
-          {Array.from({ length: REWARD_EVERY }, (_, i) => (
+        <div
+          className="grid max-w-[936px] gap-3.5"
+          style={{ gridTemplateColumns: `repeat(${settings.rewardEvery}, minmax(0, 1fr))` }}
+        >
+          {Array.from({ length: settings.rewardEvery }, (_, i) => (
             <span
               key={i}
               className={cx("h-2 rounded-[4px]", i < customer.loyalty ? "bg-gold-deep" : "bg-line")}
@@ -955,17 +967,94 @@ export function AdminReports() {
 }
 
 /* Admin — Settings / Settings (Invalid Working Hours) */
+
+/** The settings as the form holds them: numbers stay text while being typed. */
+type SettingsForm = {
+  contactPhone: string;
+  opening: string;
+  closing: string;
+  deliveryFee: string;
+  deliveryWindow: string;
+  rewardEvery: string;
+  rewardPercent: string;
+  notifyNewOrder: boolean;
+  notifyCancellation: boolean;
+  notifyLowStock: boolean;
+};
+
+const toForm = (s: Settings): SettingsForm => ({
+  contactPhone: s.contactPhone,
+  opening: s.opening,
+  closing: s.closing,
+  deliveryFee: String(s.deliveryFee),
+  deliveryWindow: String(s.deliveryWindow),
+  rewardEvery: String(s.rewardEvery),
+  rewardPercent: String(s.rewardPercent),
+  notifyNewOrder: s.notifyNewOrder,
+  notifyCancellation: s.notifyCancellation,
+  notifyLowStock: s.notifyLowStock,
+});
+
 export function AdminSettings() {
   const { t } = useI18n();
-  const { settings, saveSettings } = useAdmin();
-  const [form, setForm] = useState(settings);
-  const set = (patch: Partial<typeof form>) => setForm((prev) => ({ ...prev, ...patch }));
+  const { settings, saveSettings } = useStore();
+  const [form, setForm] = useState<SettingsForm>(() => toForm(settings));
+  const [saving, setSaving] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const set = (patch: Partial<SettingsForm>) => {
+    setForm((prev) => ({ ...prev, ...patch }));
+    setSaved(false);
+    setFailure(null);
+  };
+  const digits = (value: string) => value.replace(/\D/g, "");
+
   const invalidHours = form.closing <= form.opening;
-  const dirty = JSON.stringify(form) !== JSON.stringify(settings);
+  const rewardEvery = Number(form.rewardEvery);
+  const rewardPercent = Number(form.rewardPercent);
+  const deliveryWindow = Number(form.deliveryWindow);
+  const deliveryFee = Number(form.deliveryFee);
+  const invalidReward = !(rewardEvery >= 2 && rewardEvery <= 50);
+  const invalidPercent = !(rewardPercent >= 1 && rewardPercent <= 100);
+  const invalidWindow = !(deliveryWindow >= 1 && deliveryWindow <= 24);
+  const invalidFee = !(deliveryFee >= 0);
+  const blocked = invalidHours || invalidReward || invalidPercent || invalidWindow || invalidFee;
+  const dirty = JSON.stringify(form) !== JSON.stringify(toForm(settings));
+
+  const save = async () => {
+    setSaving(true);
+    const result = await saveSettings({
+      contactPhone: form.contactPhone,
+      opening: form.opening,
+      closing: form.closing,
+      deliveryFee,
+      deliveryWindow,
+      rewardEvery,
+      rewardPercent,
+      notifyNewOrder: form.notifyNewOrder,
+      notifyCancellation: form.notifyCancellation,
+      notifyLowStock: form.notifyLowStock,
+    });
+    setSaving(false);
+    setFailure(result);
+    setSaved(result === null);
+  };
 
   return (
     <AdminPage title={t("Settings")} actions={<AdminUser />}>
       <div className="grid gap-4 xl:grid-cols-3">
+        <Panel title={t("Contact")} className="flex flex-col gap-3.5 p-6">
+          <Input
+            label={t("Company phone number")}
+            type="tel"
+            placeholder="+962 7X XXX XXXX"
+            value={form.contactPhone}
+            onChange={(e) => set({ contactPhone: e.target.value })}
+          />
+          <p className="text-[12px] leading-[1.5] text-ink-2">
+            {t("Customers call and message this number from Help & Contact in the app.")}
+          </p>
+        </Panel>
         <Panel title={t("Working hours")} className="flex flex-col gap-3.5 p-6">
           <Input
             label={t("Opening time")}
@@ -982,77 +1071,101 @@ export function AdminSettings() {
           />
         </Panel>
         <Panel title={t("Delivery")} className="flex flex-col gap-3.5 p-6">
-          <Field label={t("Delivery pricing")}>
-            <span className="flex h-11 items-center text-ink-3">{t("Included")}</span>
-          </Field>
+          <Input
+            label={t("Delivery fee (JOD)")}
+            inputMode="decimal"
+            value={form.deliveryFee}
+            error={invalidFee && t("Enter 0 or more.")}
+            onChange={(e) => set({ deliveryFee: e.target.value.replace(/[^\d.]/g, "") })}
+          />
           <Input
             label={t("Delivery window (hours)")}
-            type="number"
-            min={1}
+            inputMode="numeric"
             value={form.deliveryWindow}
-            onChange={(e) => set({ deliveryWindow: e.target.value })}
+            error={invalidWindow && t("Enter a number between 1 and 24.")}
+            onChange={(e) => set({ deliveryWindow: digits(e.target.value) })}
           />
         </Panel>
         <Panel title={t("Notifications")} className="flex flex-col gap-3.5 p-6">
           <Toggle
-            checked={form.newOrderAlerts}
+            checked={form.notifyNewOrder}
             label={t("New order alerts")}
-            onChange={(newOrderAlerts) => set({ newOrderAlerts })}
+            onChange={(notifyNewOrder) => set({ notifyNewOrder })}
           />
           <Toggle
-            checked={form.cancellationAlerts}
+            checked={form.notifyCancellation}
             label={t("Cancellation alerts")}
-            onChange={(cancellationAlerts) => set({ cancellationAlerts })}
+            onChange={(notifyCancellation) => set({ notifyCancellation })}
           />
           <Toggle
-            checked={form.lowStockAlerts}
+            checked={form.notifyLowStock}
             label={t("Low stock alerts")}
-            onChange={(lowStockAlerts) => set({ lowStockAlerts })}
+            onChange={(notifyLowStock) => set({ notifyLowStock })}
           />
         </Panel>
-      </div>
-      <div className="flex justify-end gap-3">
-        <Button size="md" variant="outline" disabled={!dirty} onClick={() => setForm(settings)}>
-          {t("Discard")}
-        </Button>
-        <Button size="md" disabled={invalidHours || !dirty} onClick={() => saveSettings(form)}>
-          {t("Save changes")}
-        </Button>
       </div>
       <section className="flex flex-col gap-5 rounded-[10px] border border-line bg-surface px-6 pt-[18px] pb-4">
         <h2 className="text-[20px] font-semibold text-ink">{t("Loyalty Rewards Program")}</h2>
         <p className="text-[14px] text-ink-2">
-          {t("After 4 completed orders, the 5th order gets 25% off.")}
+          {t("After {n} completed orders, the next order gets {p}% off.", {
+            n: Math.max(rewardEvery - 1, 0),
+            p: rewardPercent || 0,
+          })}
         </p>
         <div className="grid gap-6 md:grid-cols-2">
           <label className="flex flex-col gap-3 rounded-[10px] border border-line px-[18px] py-4">
             <span className="text-[12px] text-ink-2">{t("Completed orders required")}</span>
             <input
               inputMode="numeric"
-              value={form.rewardThreshold}
-              onChange={(e) => set({ rewardThreshold: e.target.value.replace(/\D/g, "") })}
+              value={form.rewardEvery}
+              onChange={(e) => set({ rewardEvery: digits(e.target.value) })}
               className="h-[38px] w-[120px] rounded-[6px] border border-line bg-bg px-3 text-[26px] font-semibold text-gold-deep"
             />
+            {invalidReward && (
+              <span className="text-[12px] text-err">{t("Enter a number between 2 and 50.")}</span>
+            )}
           </label>
           <label className="flex flex-col gap-3 rounded-[10px] border border-line px-[18px] py-4">
             <span className="text-[12px] text-ink-2">{t("Reward discount")}</span>
             <span className="flex h-[38px] w-[150px] items-center rounded-[6px] border border-line bg-bg px-3 text-[26px] font-semibold text-gold-deep focus-within:border-gold">
               <input
                 inputMode="numeric"
-                value={form.rewardDiscount}
-                onChange={(e) => set({ rewardDiscount: e.target.value.replace(/\D/g, "") })}
+                value={form.rewardPercent}
+                onChange={(e) => set({ rewardPercent: digits(e.target.value) })}
                 className="w-12 bg-transparent"
               />
               %
             </span>
+            {invalidPercent && (
+              <span className="text-[12px] text-err">{t("Enter a number between 1 and 100.")}</span>
+            )}
           </label>
         </div>
         <p className="text-[12px] text-ink-2">
-          {t(
-            "Discount applies to the full order total; delivery is included. After redemption, the 5-order cycle resets.",
-          )}
+          {t("Discount applies to the full order total. After redemption, the cycle resets.")}
         </p>
       </section>
+      <div className="flex items-center justify-end gap-3">
+        {failure && <span className="text-[13px] text-err">{failure}</span>}
+        {saved && !dirty && (
+          <span className="text-[13px] text-ok">{t("Settings saved for everyone.")}</span>
+        )}
+        <Button
+          size="md"
+          variant="outline"
+          disabled={!dirty || saving}
+          onClick={() => {
+            setForm(toForm(settings));
+            setFailure(null);
+            setSaved(false);
+          }}
+        >
+          {t("Discard")}
+        </Button>
+        <Button size="md" disabled={blocked || !dirty || saving} onClick={save}>
+          {saving ? t("Saving…") : t("Save changes")}
+        </Button>
+      </div>
     </AdminPage>
   );
 }
