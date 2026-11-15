@@ -312,3 +312,35 @@ until a username is set from their profile screen.
 `email_for_username` is reachable without signing in, so someone guessing
 usernames could learn the matching email address. That is the cost of keeping
 the email as the account's identity, and it was the accepted trade-off.
+
+## Sign-in by username was refused, and passwords can now be revealed
+
+**Files:** `src/lib/neon.ts`, `src/components/ui.tsx`, `src/i18n/ar.ts`
+
+### Username sign-in
+
+Signing in with a username failed with "No account with that username", even
+for a username that exists. The lookup itself was fine — called in the
+database it returned the right address every time. The request never got that
+far: the Data API answered
+
+    401 PGRST302 — missing authentication credentials:
+    required authorization bearer token in JWT format
+
+because a visitor on the sign-in screen has no token yet, and the sign-in
+screen is exactly where the lookup has to happen.
+
+Neon's answer for this is `allowAnonymous`: the SDK fetches a short-lived
+anonymous token on the first request and sends it with every query. The client
+now sets it.
+
+This opens nothing up. The `anonymous` role holds no privilege on any table —
+checked, it has none at all — only EXECUTE on `email_for_username` and
+`username_available`, granted explicitly. Everything else still needs a signed-
+in account and passes through the same row-level security as before.
+
+### Passwords
+
+Password fields were typed blind. Every password field in the app — sign-in,
+sign-up, confirm, admin sign-in — now carries its own show / hide control,
+added once in the shared `Input` component.

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type {
   ButtonHTMLAttributes,
   InputHTMLAttributes,
@@ -10,6 +11,8 @@ import {
   Check,
   CheckCircle,
   Clock,
+  Eye,
+  EyeSlash,
   Minus,
   Plus,
   Truck,
@@ -142,9 +145,26 @@ export function Input({
   icon?: Icon;
   wrapClassName?: string;
 }) {
+  const { t } = useI18n();
+  const [shown, setShown] = useState(false);
+  // A password is typed blind, so every password field carries its own
+  // show / hide control. The field itself stays an ordinary input.
+  const isPassword = rest.type === "password";
   return (
     <Field label={label} error={error} icon={icon} className={wrapClassName}>
-      <input className={bareInput} {...rest} />
+      <input {...rest} type={isPassword && shown ? "text" : rest.type} className={bareInput} />
+      {isPassword && (
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => setShown((prev) => !prev)}
+          aria-label={t(shown ? "Hide password" : "Show password")}
+          title={t(shown ? "Hide password" : "Show password")}
+          className="-me-1 flex size-9 shrink-0 items-center justify-center rounded-[8px] text-ink-3 hover:text-ink"
+        >
+          {shown ? <EyeSlash size={20} /> : <Eye size={20} />}
+        </button>
+      )}
     </Field>
   );
 }

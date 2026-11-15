@@ -9,7 +9,15 @@ const NEON_DATABASE_URL =
   (import.meta.env.VITE_NEON_DATABASE_URL as string | undefined) ??
   "https://ep-spring-sunset-arzedt99.c-4.us-west-2.aws.neon.tech/neondb";
 
-export const neon = createClient(NEON_DATABASE_URL);
+/**
+ * `allowAnonymous` lets the app ask the database a question before anyone has
+ * signed in — which the sign-in screen has to do, to turn a username into the
+ * account's email. The SDK fetches a short-lived anonymous token for that.
+ *
+ * It opens nothing up: the `anonymous` role holds no privilege on any table,
+ * only on the two username functions it is granted explicitly.
+ */
+export const neon = createClient(NEON_DATABASE_URL, { auth: { allowAnonymous: true } });
 
 /** Turns an SDK / API error into a short message that can be shown to the user. */
 export function errorMessage(error: unknown): string {

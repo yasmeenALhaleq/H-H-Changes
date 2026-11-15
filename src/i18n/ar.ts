@@ -384,6 +384,8 @@ export const ar: Record<string, string> = {
   "Call Us": "اتصل بنا",
   "Number not set yet": "الرقم غير مضاف بعد",
   Username: "اسم المستخدم",
+  "Show password": "إظهار كلمة السر",
+  "Hide password": "إخفاء كلمة السر",
   "Username or Email": "اسم المستخدم أو البريد الإلكتروني",
   "Enter your username or email": "أدخل اسم المستخدم أو بريدك الإلكتروني",
   "Choose a username to sign in with": "اختر اسم مستخدم للدخول",
