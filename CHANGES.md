@@ -344,3 +344,6 @@ in account and passes through the same row-level security as before.
 Password fields were typed blind. Every password field in the app — sign-in,
 sign-up, confirm, admin sign-in — now carries its own show / hide control,
 added once in the shared `Input` component.
+
+> The bundle at `bundle/HH_CO-full.zip` was rebuilt on 15 Nov at 23:26 and now
+> carries the anonymous-token and password-reveal fixes above. Use this one.
