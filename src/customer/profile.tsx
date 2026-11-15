@@ -4,6 +4,13 @@ import { Bell, Clock, Globe, MapPin, Phone, Question, Users } from "@phosphor-ic
 import { useI18n, type Lang } from "@/i18n";
 import { useStore, type CustomerType, type NotificationPrefs } from "@/store";
 import { initials } from "@/store/format";
+import {
+  callCompany,
+  COMPANY_HOURS,
+  COMPANY_PHONE,
+  hasPhone,
+  whatsappCompany,
+} from "@/lib/company";
 import { Footer, MobileHeader, Screen } from "@/components/mobile";
 import {
   Avatar,
@@ -278,16 +285,28 @@ export function HelpContact() {
       bodyClassName="gap-3 px-6 py-4"
       footer={
         <Footer>
-          <Button full>{t("Call Us")}</Button>
+          <Button full disabled={!hasPhone} onClick={callCompany}>
+            {t("Call Us")}
+          </Button>
         </Footer>
       }
     >
       <p className="text-[15px] leading-[1.5] text-ink-2">
         {t("Need help with an order? Reach us directly.")}
       </p>
-      <ListRow icon={Phone} title={t("Phone")} subtitle="+962 X XXX XXXX" />
-      <ListRow icon={Phone} title={t("WhatsApp")} subtitle={t("Chat with our team")} />
-      <ListRow icon={Clock} title={t("Working hours")} subtitle="08:00 – 18:00" />
+      <ListRow
+        icon={Phone}
+        title={t("Phone")}
+        subtitle={hasPhone ? COMPANY_PHONE : t("Number not set yet")}
+        onClick={hasPhone ? callCompany : undefined}
+      />
+      <ListRow
+        icon={Phone}
+        title={t("WhatsApp")}
+        subtitle={t("Chat with our team")}
+        onClick={hasPhone ? whatsappCompany : undefined}
+      />
+      <ListRow icon={Clock} title={t("Working hours")} subtitle={COMPANY_HOURS} />
     </Screen>
   );
 }

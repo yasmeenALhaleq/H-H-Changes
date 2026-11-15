@@ -80,3 +80,55 @@ Three changes:
    minimal one, so an existing broken account heals on next sign-in.
 4. `/signup` now sits behind `GuestOnly`, so a signed-in user is sent to the
    home screen instead of reaching the sign-up form.
+
+## Bundle — 15 Nov
+
+Upload these four files together, then Publish:
+
+- `src/store/index.tsx`
+- `src/customer/profile.tsx`
+- `src/lib/company.ts`  ← new file
+- `src/i18n/ar.ts`
+
+`src/App.tsx` is already uploaded and unchanged.
+
+### 1. Help & Contact did nothing
+
+**Files:** `src/lib/company.ts` (new), `src/customer/profile.tsx`, `src/i18n/ar.ts`
+
+The Figma design carried a placeholder number (`+962 X XXX XXXX`), so the
+"Call Us" button and the Phone and WhatsApp rows had nothing to open and were
+inert.
+
+The company's number now lives in one place, `COMPANY_PHONE` in
+`src/lib/company.ts`. Fill it in and the whole screen works at once: the phone
+row and "Call Us" open the dialer, the WhatsApp row opens the chat. While it is
+empty the row reads "Number not set yet" and the button is disabled, so no
+customer is sent to a wrong number.
+
+### 2. Orders missing on the home screen after returning to the site
+
+**File:** `src/store/index.tsx`
+
+Every read of profile, addresses and orders is filtered by the signed-in
+account's access token. A token that has gone stale is not rejected with an
+error — the rows are simply filtered out, so the app looked like a brand-new
+account with no orders. The next background refresh (every 20 s) picked up a
+fresh token, which is why the order reappeared a moment later on another screen.
+
+Three changes:
+
+1. `loadCustomer` asks for the session before reading, which renews a stale
+   token first.
+2. If the profile row comes back missing — which cannot happen for a real
+   account — the whole read is retried once after a short pause.
+3. The background refresh also listens for `visibilitychange`, not only
+   `focus`. A phone freezes a background tab, so the 20 s timer stops and
+   `focus` often never fires; returning to the tab now always reloads the data.
+
+### Still open
+
+Oxygen pricing: quantity is in litres while the jar price is per jar, so an 8L
+jar ordered as 3 L is charged 15 JOD — less than the 3L jar's own 18 JOD.
+Waiting on the company's decision: price per jar, or force the quantity into
+multiples of the jar size.

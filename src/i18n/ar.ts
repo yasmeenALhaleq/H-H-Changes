@@ -384,6 +384,7 @@ export const ar: Record<string, string> = {
   "Chat with our team": "تحدث مع فريقنا",
   "Working hours": "ساعات العمل",
   "Call Us": "اتصل بنا",
+  "Number not set yet": "الرقم غير مضاف بعد",
 
   "We could not place your order. Check your connection and try again.":
     "تعذّر إرسال طلبك. تحقق من الاتصال وحاول مرة أخرى.",

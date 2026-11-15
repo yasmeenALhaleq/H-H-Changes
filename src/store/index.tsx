@@ -343,12 +343,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   /** Loads the signed-in account's profile, addresses and orders (all orders for an admin). */
   const loadCustomer = useCallback(async (userId: string, email: string) => {
-    const [profile, addressRows, orderRows, admin] = await Promise.all([
-      neon.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
-      neon.from("addresses").select("*").order("created_at", { ascending: true }),
-      neon.from("orders").select("*").order("created_at", { ascending: false }),
-      neon.rpc("is_admin"),
-    ]);
+    // Every read below is filtered by the signed-in account, so the access token
+    // has to be in hand first. Asking for the session renews an expired one;
+    // without this a stale token silently returns no rows at all.
+    await neon.auth.getSession().catch(() => null);
+    const read = () =>
+      Promise.all([
+        neon.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
+        neon.from("addresses").select("*").order("created_at", { ascending: true }),
+        neon.from("orders").select("*").order("created_at", { ascending: false }),
+        neon.rpc("is_admin"),
+      ]);
+    let [profile, addressRows, orderRows, admin] = await read();
+    // No profile row means the token was not accepted — the account always has one.
+    // Give it one more try before showing the account as empty.
+    if (!profile.data) {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      [profile, addressRows, orderRows, admin] = await read();
+    }
     const admins = admin.data === true;
     setIsAdmin(admins);
     // An admin may read every profile; a customer only sees their own row.
@@ -442,9 +454,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
     const timer = window.setInterval(refresh, 20000);
     window.addEventListener("focus", refresh);
+    // A phone freezes a background tab, so the timer above stops and "focus"
+    // may never fire. Coming back to the tab always fires this one.
+    document.addEventListener("visibilitychange", refresh);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
     };
   }, [activeUser, activeEmail, loadCustomer]);
 
