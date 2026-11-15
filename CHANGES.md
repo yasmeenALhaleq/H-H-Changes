@@ -347,3 +347,50 @@ added once in the shared `Input` component.
 
 > The bundle at `bundle/HH_CO-full.zip` was rebuilt on 15 Nov at 23:26 and now
 > carries the anonymous-token and password-reveal fixes above. Use this one.
+
+## Product images, prices and availability from the admin
+
+**Files:** `src/store/index.tsx`, `src/admin/screens.tsx`, `src/admin/data.tsx`,
+`src/customer/shop.tsx`, `src/lib/image.ts` (new), `src/i18n/ar.ts`
+
+The admin products page saved nothing — the same state the settings page was in.
+Its values lived in the browser, reset on reload, and the customer app never saw
+them; the catalog it showed was fixed in the code.
+
+The operations team now controls, per product: the photo, the price, the
+description, and whether it appears in the customer app at all. Saved in Neon,
+read by both sides.
+
+### Images
+
+Neon's object storage is not available in this project's region (us-west-2;
+it runs in us-east-2, us-east-1, eu-central-1 and ap-southeast-1), and moving
+the project would mean rebuilding it. So a photo is stored in the products row
+as a data URL.
+
+A camera file is far too big for that, so `src/lib/image.ts` shrinks the picture
+to 900px on its longest side and compresses it, stepping the JPEG quality down
+until it fits under ~400 KB of text — in practice 60–120 KB. A transparent PNG
+is laid on white first so it does not come out black.
+
+The photo shows on the home tiles, the products list and the product screen,
+and each falls back to the product's icon when no photo is set.
+
+### What stays in the code
+
+The unit and the minimum, step and maximum of an order: the order screen is
+built around those numbers, so the admin page shows them read-only with a line
+saying why.
+
+Oxygen's price too. It is priced per jar, 3L and 8L, which one price field
+cannot express — that field is disabled for oxygen until the pricing question
+is settled.
+
+### Database
+
+- `public.products` — one row per product, holding price, description, active
+  and image. Readable by any signed-in account.
+- `public.admin_save_product(...)` — the only way to write it; refuses anyone
+  without the admin role.
+
+Already applied; nothing to upload for this part.

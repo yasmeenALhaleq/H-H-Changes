@@ -111,6 +111,29 @@ export const PRODUCTS: Record<ProductId, Product> = {
 
 export const PRODUCT_LIST: Product[] = [PRODUCTS["dry-ice"], PRODUCTS.nitrogen, PRODUCTS.oxygen];
 
+/**
+ * What the operations team controls per product, saved in the database. The
+ * rest of a product — its unit, and the minimum, step and maximum of an order —
+ * stays in the code, because the order screen is built around those numbers.
+ */
+export type CatalogProduct = Product & {
+  /** Off hides the product from the customer app. */
+  active: boolean;
+  /** The product photo, as a data URL, or null while none is set. */
+  image: string | null;
+};
+
+type ProductRow = {
+  id: ProductId;
+  price: number | string | null;
+  description: string;
+  active: boolean;
+  image: string | null;
+};
+
+/** Oxygen is priced by the jar, so its price is not the admin's to set yet. */
+export const PRICED_BY_JAR: ProductId[] = ["oxygen"];
+
 /** Price per unit for a product, taking the oxygen jar size into account. */
 export function unitPrice(product: ProductId, jar: JarSize = "3L"): number | null {
   if (product === "oxygen") return JAR_PRICE[jar] / Number.parseInt(jar, 10);
@@ -135,8 +158,10 @@ export function priceOrder(
   jar: JarSize = "3L",
   reward = false,
   settings: Pick<Settings, "deliveryFee" | "rewardPercent"> = DEFAULT_SETTINGS,
+  catalog: CatalogProduct[] = [],
 ): Pricing {
-  const unit = unitPrice(product, jar);
+  const saved = catalog.find((p) => p.id === product);
+  const unit = saved && !PRICED_BY_JAR.includes(product) ? saved.price : unitPrice(product, jar);
   if (unit === null) return { unit, subtotal: null, discount: 0, total: null };
   const subtotal = unit * qty;
   const gross = subtotal + settings.deliveryFee;
@@ -294,6 +319,13 @@ type Store = {
   /** Admin actions on any customer's order. */
   setOrderStatus: (uid: string, status: OrderStatus) => Promise<Failure>;
   assignDriver: (uid: string, driver: string) => Promise<Failure>;
+  /** Products as the operations team has them, built-in details merged in. */
+  catalog: CatalogProduct[];
+  /** Admin only — saves one product's price, description, availability and photo. */
+  saveProduct: (
+    id: ProductId,
+    patch: Pick<CatalogProduct, "price" | "description" | "active" | "image">,
+  ) => Promise<Failure>;
   /** Company settings, as the operations team has saved them. */
   settings: Settings;
   /** Admin only — writes the settings back to the database. */
@@ -437,6 +469,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [loyalty, setLoyalty] = useState(0);
   const [draft, setDraftState] = useState<Draft>(emptyDraft("dry-ice"));
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [productRows, setProductRows] = useState<ProductRow[]>([]);
 
   /** Loads the signed-in account's profile, addresses and orders (all orders for an admin). */
   const loadCustomer = useCallback(async (userId: string, email: string) => {
@@ -451,15 +484,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         neon.from("orders").select("*").order("created_at", { ascending: false }),
         neon.rpc("is_admin"),
         neon.from("settings").select("*").eq("id", 1).maybeSingle(),
+        neon.from("products").select("*"),
       ]);
-    let [profile, addressRows, orderRows, admin, settingsRow] = await read();
+    let [profile, addressRows, orderRows, admin, settingsRow, productList] = await read();
     // No profile row means the token was not accepted — the account always has one.
     // Give it one more try before showing the account as empty.
     if (!profile.data) {
       await new Promise((resolve) => setTimeout(resolve, 700));
-      [profile, addressRows, orderRows, admin, settingsRow] = await read();
+      [profile, addressRows, orderRows, admin, settingsRow, productList] = await read();
     }
     if (settingsRow.data) setSettings(toSettings(settingsRow.data as SettingsRow));
+    if (productList.data) setProductRows(productList.data as ProductRow[]);
     const admins = admin.data === true;
     setIsAdmin(admins);
     // An admin may read every profile; a customer only sees their own row.
@@ -569,6 +604,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const orders = allOrders.map((o) => ({ ...o, mine: o.userId === activeUser, admin: isAdmin }));
     const myOrders = orders.filter((o) => o.mine);
     const rewardReady = loyalty >= settings.rewardEvery - 1;
+    // The built-in product is the base; whatever the admin saved sits on top.
+    const catalog: CatalogProduct[] = PRODUCT_LIST.map((product) => {
+      const row = productRows.find((r) => r.id === product.id);
+      return {
+        ...product,
+        price: row && row.price !== null ? Number(row.price) : row ? null : product.price,
+        description: row?.description || product.description,
+        active: row?.active ?? true,
+        image: row?.image ?? null,
+      };
+    });
     const userId = session.status === "user" ? session.userId : null;
 
     /** Admin change to an order, through the database function that checks the admin role. */
@@ -796,7 +842,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               address,
               slot,
               slot_short: slotShort,
-              total: priceOrder(draft.product, draft.qty, draft.jar, rewardReady, settings).total,
+              total: priceOrder(draft.product, draft.qty, draft.jar, rewardReady, settings, catalog)
+                .total,
               note: draft.note || null,
               reward: rewardReady,
             })
@@ -832,6 +879,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setOrderStatus: (uid, status) => adminUpdate(uid, { p_status: status }),
       assignDriver: (uid, driver) => adminUpdate(uid, { p_driver: driver }),
 
+      catalog,
+      saveProduct: async (id, patch) => {
+        try {
+          const { data, error } = await neon.rpc("admin_save_product", {
+            p_id: id,
+            p_price: patch.price,
+            p_description: patch.description,
+            p_active: patch.active,
+            p_image: patch.image,
+          });
+          if (error || !data) return errorMessage(error);
+          const row = data as ProductRow;
+          setProductRows((prev) => [...prev.filter((r) => r.id !== row.id), row]);
+          return null;
+        } catch (error) {
+          return errorMessage(error);
+        }
+      },
+
       settings,
       saveSettings: async (next) => {
         try {
@@ -858,6 +924,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [
     session,
     settings,
+    productRows,
     account,
     addresses,
     notifications,

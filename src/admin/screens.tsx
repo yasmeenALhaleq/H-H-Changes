@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { Image as ImageIcon } from "@phosphor-icons/react";
 import { useI18n } from "@/i18n";
@@ -8,6 +8,7 @@ import {
   priceOrder,
   PRODUCT_LIST,
   PRODUCTS,
+  PRICED_BY_JAR,
   STATUS_LABEL,
   useStore,
   type Order,
@@ -15,6 +16,7 @@ import {
   type Settings,
 } from "@/store";
 import { useOrderText } from "@/store/format";
+import { imageProblemText, imageToDataUrl } from "@/lib/image";
 import {
   Badge,
   Button,
@@ -30,7 +32,7 @@ import {
   Toggle,
 } from "@/components/ui";
 import { AdminPage, AdminUser, Panel, Stat, Table } from "./layout";
-import { availabilityTone, DRIVERS, useAdmin, type AdminProduct } from "./data";
+import { availabilityTone, DRIVERS, useAdmin } from "./data";
 
 function StatusBadge({ status }: { status: OrderStatus }) {
   const { t } = useI18n();
@@ -258,42 +260,48 @@ export function Dashboard() {
   );
 }
 
-function productPrice(
-  product: AdminProduct,
-  t: (s: string, v?: Record<string, string | number>) => string,
-  money: (n: number) => string,
-) {
-  if (product.price === null) return t("To be confirmed");
-  return t("{a} (proposed)", { a: t("{a} / {u}", { a: money(product.price), u: t(product.per) }) });
-}
-
 /* Admin — Products Management */
 export function AdminProducts() {
   const navigate = useNavigate();
   const { t, money } = useI18n();
-  const { products } = useAdmin();
+  const { catalog } = useStore();
   return (
-    <AdminPage
-      title={t("Products")}
-      actions={
-        <Button size="md" onClick={() => navigate("/admin/products/new")}>
-          {t("Add product")}
-        </Button>
-      }
-    >
+    <AdminPage title={t("Products")} actions={<AdminUser />}>
       <Table
         endLast
-        columns={[t("Product"), t("Unit"), t("Price"), t("Min order"), t("Step"), t("Status")]}
-        rows={products.map((product) => ({
+        columns={[
+          t("Product"),
+          t("Image"),
+          t("Unit"),
+          t("Price"),
+          t("Min order"),
+          t("Step"),
+          t("Status"),
+        ]}
+        rows={catalog.map((product) => ({
           key: product.id,
           cells: [
             t(product.name),
-            t(product.unit),
-            productPrice(product, t, money),
-            t(product.min),
-            t(product.step),
+            product.image ? (
+              <img
+                key="i"
+                src={product.image}
+                alt=""
+                className="size-10 rounded-[8px] border border-line object-cover"
+              />
+            ) : (
+              <span key="i" className="text-ink-3">
+                —
+              </span>
+            ),
+            t(product.unitLong),
+            product.price === null
+              ? t("To be confirmed")
+              : t("{a} / {u}", { a: money(product.price), u: t(product.unit) }),
+            `${product.min} ${t(product.unit)}`,
+            `${product.step} ${t(product.unit)}`,
             <Badge key="s" tone={product.active ? "muted" : "warn"}>
-              {t(product.active ? "Active" : "Draft")}
+              {t(product.active ? "Active" : "Hidden")}
             </Badge>,
           ],
         }))}
@@ -306,113 +314,212 @@ export function AdminProducts() {
   );
 }
 
-const blankProduct: AdminProduct = {
-  id: "",
-  name: "",
-  unit: "",
-  price: null,
-  per: "",
-  min: "",
-  step: "",
-  max: "",
-  description: "",
-  active: true,
-};
-
 /* Admin — Add / Edit Product */
 export function ProductEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { t } = useI18n();
-  const { products, saveProduct } = useAdmin();
-  const existing = products.find((p) => p.id === id);
-  const [form, setForm] = useState<AdminProduct>(existing ?? blankProduct);
-  const [price, setPrice] = useState(existing?.price?.toFixed(2) ?? "");
-  const set = (patch: Partial<AdminProduct>) => setForm((prev) => ({ ...prev, ...patch }));
+  const { t, money } = useI18n();
+  const { catalog, saveProduct } = useStore();
+  const product = catalog.find((p) => p.id === id);
 
-  if (id !== "new" && !existing) return <Navigate to="/admin/products" replace />;
+  const [price, setPrice] = useState(product?.price?.toFixed(2) ?? "");
+  const [description, setDescription] = useState(product?.description ?? "");
+  const [active, setActive] = useState(product?.active ?? true);
+  const [image, setImage] = useState<string | null>(product?.image ?? null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [working, setWorking] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const save = () => {
-    const parsed = Number.parseFloat(price);
-    saveProduct({
-      ...form,
-      id: form.id || `product-${Date.now()}`,
-      price: Number.isFinite(parsed) ? parsed : null,
+  if (!product) return <Navigate to="/admin/products" replace />;
+
+  const byJar = PRICED_BY_JAR.includes(product.id);
+  const parsedPrice = price.trim() === "" ? null : Number.parseFloat(price);
+  const priceBroken = parsedPrice !== null && !(Number.isFinite(parsedPrice) && parsedPrice >= 0);
+  const dirty =
+    (byJar ? false : (parsedPrice ?? null) !== (product.price ?? null)) ||
+    description !== product.description ||
+    active !== product.active ||
+    image !== product.image;
+
+  const touched = () => {
+    setSaved(false);
+    setFailure(null);
+  };
+
+  const pickImage = async (file: File | undefined) => {
+    if (!file) return;
+    touched();
+    setWorking(true);
+    const result = await imageToDataUrl(file);
+    setWorking(false);
+    if ("problem" in result) setFailure(t(imageProblemText[result.problem]));
+    else setImage(result.dataUrl);
+  };
+
+  const save = async () => {
+    setBusy(true);
+    const result = await saveProduct(product.id, {
+      price: byJar ? product.price : (parsedPrice ?? null),
+      description: description.trim(),
+      active,
+      image,
     });
-    navigate("/admin/products");
+    setBusy(false);
+    setFailure(result);
+    setSaved(result === null);
   };
 
   return (
     <AdminPage
-      title={existing ? t("Edit Product — {name}", { name: t(existing.name) }) : t("Add Product")}
+      title={t("Edit Product — {name}", { name: t(product.name) })}
       actions={<AdminUser />}
     >
       <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <Panel title={t("Product details")} className="flex flex-col gap-4 p-6">
-          <Input
-            label={t("Product name")}
-            value={existing ? t(form.name) : form.name}
-            onChange={(e) => set({ name: e.target.value })}
-          />
-          <Input
-            label={t("Unit of measurement")}
-            value={existing ? t(form.unit) : form.unit}
-            onChange={(e) => set({ unit: e.target.value })}
-          />
-          <Input
-            label={t("Price per unit (proposed)")}
-            inputMode="decimal"
-            placeholder="JOD 0.00"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-          />
+          <Field label={t("Product name")}>
+            <span className="flex h-11 items-center text-ink">{t(product.name)}</span>
+          </Field>
+          <Field label={t("Unit of measurement")}>
+            <span className="flex h-11 items-center text-ink">{t(product.unitLong)}</span>
+          </Field>
+          {byJar ? (
+            <Field label={t("Price per unit (proposed)")}>
+              <span className="flex h-11 items-center text-ink-3">
+                {t("Priced by the jar — set in the code until the pricing is decided.")}
+              </span>
+            </Field>
+          ) : (
+            <Input
+              label={t("Price per unit (proposed)")}
+              inputMode="decimal"
+              placeholder="JOD 0.00"
+              value={price}
+              error={priceBroken && t("Enter 0 or more.")}
+              onChange={(e) => {
+                setPrice(e.target.value.replace(/[^\d.]/g, ""));
+                touched();
+              }}
+            />
+          )}
           <div className="grid gap-4 sm:grid-cols-3">
-            <Input
-              label={t("Minimum order")}
-              value={form.min}
-              onChange={(e) => set({ min: e.target.value })}
-            />
-            <Input
-              label={t("Step")}
-              value={form.step}
-              onChange={(e) => set({ step: e.target.value })}
-            />
-            <Input
-              label={t("Maximum order")}
-              value={form.max}
-              onChange={(e) => set({ max: e.target.value })}
-            />
+            <Field label={t("Minimum order")}>
+              <span className="flex h-11 items-center text-ink-2">
+                {product.min} {t(product.unit)}
+              </span>
+            </Field>
+            <Field label={t("Step")}>
+              <span className="flex h-11 items-center text-ink-2">
+                {product.step} {t(product.unit)}
+              </span>
+            </Field>
+            <Field label={t("Maximum order")}>
+              <span className="flex h-11 items-center text-ink-2">
+                {product.max} {t(product.unit)}
+              </span>
+            </Field>
           </div>
+          <p className="text-[12px] leading-5 text-ink-3">
+            {t("Order limits shape the order screen itself, so they stay in the code.")}
+          </p>
           <TextArea
             label={t("Description")}
-            value={existing ? t(form.description) : form.description}
-            onChange={(e) => set({ description: e.target.value })}
+            value={description}
+            onChange={(e) => {
+              setDescription(e.target.value);
+              touched();
+            }}
           />
         </Panel>
         <div className="flex flex-col gap-6">
-          <button
-            type="button"
-            className="flex h-60 flex-col items-center justify-center rounded-[14px] border border-line bg-surface p-6 text-ink-2"
-          >
-            <ImageIcon size={24} />
-            <span className="text-[13px] leading-5">{t("Upload product image")}</span>
-          </button>
+          <Panel title={t("Product image")} className="flex flex-col gap-3 p-5">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                void pickImage(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+            {image ? (
+              <img
+                src={image}
+                alt={t(product.name)}
+                className="h-48 w-full rounded-[12px] border border-line object-cover"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="flex h-48 flex-col items-center justify-center gap-2 rounded-[12px] border border-dashed border-line bg-bg text-ink-2 hover:text-ink"
+              >
+                <ImageIcon size={24} />
+                <span className="text-[13px] leading-5">
+                  {working ? t("Preparing…") : t("Upload product image")}
+                </span>
+              </button>
+            )}
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={working}
+                onClick={() => fileRef.current?.click()}
+              >
+                {working ? t("Preparing…") : image ? t("Replace") : t("Choose image")}
+              </Button>
+              {image && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setImage(null);
+                    touched();
+                  }}
+                >
+                  {t("Remove")}
+                </Button>
+              )}
+            </div>
+            <p className="text-[12px] leading-5 text-ink-3">
+              {t("The picture is shrunk and compressed before it is saved.")}
+            </p>
+          </Panel>
           <Panel className="flex flex-col gap-3 p-5">
             <h2 className="text-[16px] leading-6 font-semibold text-ink">{t("Status")}</h2>
             <Toggle
-              checked={form.active}
+              checked={active}
               label={t("Show in customer app")}
-              onChange={(active) => set({ active })}
+              onChange={(next) => {
+                setActive(next);
+                touched();
+              }}
             />
+            <p className="text-[12px] leading-5 text-ink-3">
+              {t("Turned off, the product disappears from the customer app.")}
+            </p>
+          </Panel>
+          <Panel title={t("Customer sees")} className="flex flex-col gap-2 p-5">
+            <span className="text-[15px] font-semibold text-ink">{t(product.name)}</span>
+            <span className="text-[13px] text-ink-2">
+              {product.price === null
+                ? t("To be confirmed")
+                : t("{a} / {u} (proposed)", { a: money(product.price), u: t(product.unit) })}
+            </span>
           </Panel>
         </div>
       </div>
-      <div className="flex justify-end gap-3">
+      <div className="flex items-center justify-end gap-3">
+        {failure && <span className="text-[13px] text-err">{failure}</span>}
+        {saved && !dirty && <span className="text-[13px] text-ok">{t("Product saved.")}</span>}
         <Button size="md" variant="outline" onClick={() => navigate("/admin/products")}>
-          {t("Cancel")}
+          {t("Back to products")}
         </Button>
-        <Button size="md" disabled={!form.name.trim()} onClick={save}>
-          {t("Save product")}
+        <Button size="md" disabled={!dirty || priceBroken || busy} onClick={() => void save()}>
+          {busy ? t("Saving…") : t("Save product")}
         </Button>
       </div>
     </AdminPage>

@@ -384,6 +384,27 @@ export const ar: Record<string, string> = {
   "Call Us": "اتصل بنا",
   "Number not set yet": "الرقم غير مضاف بعد",
   Username: "اسم المستخدم",
+  Image: "الصورة",
+  Hidden: "مخفي",
+  "Product image": "صورة المنتج",
+  "Choose image": "اختر صورة",
+  Replace: "استبدال",
+  Remove: "حذف",
+  "Preparing…": "جارٍ التجهيز…",
+  "The picture is shrunk and compressed before it is saved.": "الصورة بتنصغّر وتنضغط قبل الحفظ.",
+  "Turned off, the product disappears from the customer app.":
+    "لما تطفيه، المنتج بيختفي من تطبيق العميل.",
+  "Order limits shape the order screen itself, so they stay in the code.":
+    "حدود الطلب بتتحكم بشاشة الطلب نفسها، فبتضل بالكود.",
+  "Priced by the jar — set in the code until the pricing is decided.":
+    "التسعير بالجار — محدد بالكود لحين إقرار طريقة التسعير.",
+  "Customer sees": "ما يراه العميل",
+  "Back to products": "رجوع للمنتجات",
+  "Product saved.": "تم حفظ المنتج.",
+  "Choose an image file.": "اختر ملف صورة.",
+  "That image could not be read. Try another one.": "ما قدرنا نقرأ الصورة. جرّب وحدة ثانية.",
+  "That image is too detailed to store. Try a smaller one.":
+    "الصورة كبيرة جداً للحفظ. جرّب وحدة أصغر.",
   "Show password": "إظهار كلمة السر",
   "Hide password": "إخفاء كلمة السر",
   "Username or Email": "اسم المستخدم أو البريد الإلكتروني",

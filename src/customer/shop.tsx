@@ -21,6 +21,7 @@ import {
   JAR_PRICE,
   priceOrder,
   PRODUCT_LIST,
+  type CatalogProduct,
   PRODUCTS,
   useStore,
   type JarSize,
@@ -153,12 +154,36 @@ function LoyaltyCard() {
 
 const tileUnit: Record<ProductId, string> = { "dry-ice": "Kg", nitrogen: "Liter", oxygen: "Jar" };
 
+/** The product photo when the operations team has set one, otherwise its icon. */
+function ProductArt({
+  product,
+  size,
+  className,
+}: {
+  product: CatalogProduct;
+  size: number;
+  className: string;
+}) {
+  const { t } = useI18n();
+  const Fallback = PRODUCT_ICON[product.id];
+  if (product.image)
+    return (
+      <img src={product.image} alt={t(product.name)} className={cx(className, "object-cover")} />
+    );
+  return (
+    <span className={cx(className, "flex items-center justify-center bg-elevated text-gold")}>
+      <Fallback size={size} />
+    </span>
+  );
+}
+
 /* Home — With Active Orders / Home — No Active Orders */
 export function Home() {
   const navigate = useNavigate();
   const { t } = useI18n();
-  const { account, orders, fresh } = useStore();
+  const { account, orders, fresh, catalog } = useStore();
   const active = orders.filter((o) => o.mine && isActive(o));
+  const shelf = catalog.filter((p) => p.active);
 
   if (fresh && active.length === 0) return <HomeNewAccount />;
 
@@ -192,23 +217,18 @@ export function Home() {
 
       <h2 className="text-[18px] font-semibold text-ink">{t("Products")}</h2>
       <div className="grid grid-cols-3 gap-2">
-        {PRODUCT_LIST.map((product) => {
-          const TileIcon = PRODUCT_ICON[product.id];
-          return (
-            <button
-              key={product.id}
-              type="button"
-              onClick={() => navigate(`/products/${product.id}`)}
-              className="flex flex-col items-center gap-2 rounded-[12px] border border-line bg-surface p-3"
-            >
-              <span className="flex size-12 items-center justify-center rounded-[12px] bg-elevated text-gold">
-                <TileIcon size={24} />
-              </span>
-              <span className="text-[14px] font-semibold text-ink">{t(product.name)}</span>
-              <span className="text-[12px] text-ink-2">{t(tileUnit[product.id])}</span>
-            </button>
-          );
-        })}
+        {shelf.map((product) => (
+          <button
+            key={product.id}
+            type="button"
+            onClick={() => navigate(`/products/${product.id}`)}
+            className="flex flex-col items-center gap-2 rounded-[12px] border border-line bg-surface p-3"
+          >
+            <ProductArt product={product} size={24} className="size-12 rounded-[12px]" />
+            <span className="text-[14px] font-semibold text-ink">{t(product.name)}</span>
+            <span className="text-[12px] text-ink-2">{t(tileUnit[product.id])}</span>
+          </button>
+        ))}
       </div>
 
       <h2 className="text-[18px] font-semibold text-ink">{t("Active Orders")}</h2>
@@ -240,7 +260,8 @@ const newAccountUnit: Record<ProductId, string> = {
 function HomeNewAccount() {
   const navigate = useNavigate();
   const { t } = useI18n();
-  const { account } = useStore();
+  const { account, catalog } = useStore();
+  const shelf = catalog.filter((p) => p.active);
   return (
     <Screen nav header={<MobileHeader brand bell />} bodyClassName="gap-5 px-6 pt-5 pb-4">
       <div className="flex flex-col gap-5">
@@ -262,21 +283,18 @@ function HomeNewAccount() {
 
       <h2 className="text-[16px] leading-6 font-semibold text-ink">{t("Products")}</h2>
       <div className="grid grid-cols-3 gap-2.5">
-        {PRODUCT_LIST.map((product) => {
-          const TileIcon = PRODUCT_ICON[product.id];
-          return (
-            <button
-              key={product.id}
-              type="button"
-              onClick={() => navigate(`/products/${product.id}`)}
-              className="flex flex-col items-start gap-2 rounded-[14px] border border-line bg-surface p-3 text-start"
-            >
-              <TileIcon size={24} className="text-gold" />
-              <span className="text-[14px] font-semibold text-ink">{t(product.name)}</span>
-              <span className="text-[12px] text-ink-2">{t(newAccountUnit[product.id])}</span>
-            </button>
-          );
-        })}
+        {shelf.map((product) => (
+          <button
+            key={product.id}
+            type="button"
+            onClick={() => navigate(`/products/${product.id}`)}
+            className="flex flex-col items-start gap-2 rounded-[14px] border border-line bg-surface p-3 text-start"
+          >
+            <ProductArt product={product} size={24} className="size-10 rounded-[10px]" />
+            <span className="text-[14px] font-semibold text-ink">{t(product.name)}</span>
+            <span className="text-[12px] text-ink-2">{t(newAccountUnit[product.id])}</span>
+          </button>
+        ))}
       </div>
 
       <h2 className="text-[16px] leading-6 font-semibold text-ink">{t("Active Orders")}</h2>
@@ -303,38 +321,36 @@ function HomeNewAccount() {
 export function Products() {
   const navigate = useNavigate();
   const { t, money } = useI18n();
-  const price: Record<ProductId, string> = {
-    "dry-ice": t("{a} / {u}", { a: money(1.5), u: t("kg") }),
-    nitrogen: t("To be confirmed"),
-    oxygen: t("{a} / {u}", { a: money(JAR_PRICE["3L"]), u: t("3L jar") }),
+  const { catalog } = useStore();
+  const shelf = catalog.filter((p) => p.active);
+  const priceLabel = (product: CatalogProduct) => {
+    if (product.id === "oxygen")
+      return t("{a} / {u}", { a: money(JAR_PRICE["3L"]), u: t("3L jar") });
+    if (product.price === null) return t("To be confirmed");
+    return t("{a} / {u}", { a: money(product.price), u: t(product.unit) });
   };
   return (
     <Screen nav header={<MobileHeader title={t("Products")} />} bodyClassName="gap-3 px-6 py-4">
-      {PRODUCT_LIST.map((product) => {
-        const RowIcon = PRODUCT_ICON[product.id];
-        return (
-          <button
-            key={product.id}
-            type="button"
-            onClick={() => navigate(`/products/${product.id}`)}
-            className="flex items-center gap-3 rounded-[16px] border border-line bg-surface p-3 text-start"
-          >
-            <span className="flex size-[72px] shrink-0 items-center justify-center rounded-[12px] bg-elevated text-gold">
-              <RowIcon size={32} />
+      {shelf.map((product) => (
+        <button
+          key={product.id}
+          type="button"
+          onClick={() => navigate(`/products/${product.id}`)}
+          className="flex items-center gap-3 rounded-[16px] border border-line bg-surface p-3 text-start"
+        >
+          <ProductArt product={product} size={32} className="size-[72px] shrink-0 rounded-[12px]" />
+          <span className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="text-[16px] font-semibold text-ink">{t(product.name)}</span>
+            <span className="text-[13px] text-ink-2">
+              {t("Unit: {u}", { u: t(product.unitLong) })}
             </span>
-            <span className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="text-[16px] font-semibold text-ink">{t(product.name)}</span>
-              <span className="text-[13px] text-ink-2">
-                {t("Unit: {u}", { u: t(product.unitLong) })}
-              </span>
-              <span className="text-[13px] font-medium text-gold">
-                {t("Proposed: {p}", { p: price[product.id] })}
-              </span>
+            <span className="text-[13px] font-medium text-gold">
+              {t("Proposed: {p}", { p: priceLabel(product) })}
             </span>
-            <CaretRight size={16} className="shrink-0 text-ink-3 rtl:-scale-x-100" />
-          </button>
-        );
-      })}
+          </span>
+          <CaretRight size={16} className="shrink-0 text-ink-3 rtl:-scale-x-100" />
+        </button>
+      ))}
     </Screen>
   );
 }
@@ -342,17 +358,25 @@ export function Products() {
 /* Product Details — Dry Ice / Nitrogen / Oxygen */
 export function ProductDetails() {
   const { id } = useParams();
+  const { catalog } = useStore();
   if (!isProduct(id)) return <Navigate to="/products" replace />;
-  return id === "dry-ice" ? <DryIceDetails /> : <GasDetails product={PRODUCTS[id]} />;
+  const product = catalog.find((p) => p.id === id);
+  // A product the admin switched off is no longer orderable.
+  if (!product || !product.active) return <Navigate to="/products" replace />;
+  return id === "dry-ice" ? <DryIceDetails /> : <GasDetails product={product} />;
 }
 
 function DryIceDetails() {
   const navigate = useNavigate();
   const { t, money } = useI18n();
-  const { startDraft, settings } = useStore();
-  const product = PRODUCTS["dry-ice"];
+  const { startDraft, settings, catalog } = useStore();
+  const product = catalog.find((p) => p.id === "dry-ice") ?? {
+    ...PRODUCTS["dry-ice"],
+    active: true,
+    image: null,
+  };
   const [qty, setQty] = useState(product.detailQty);
-  const pricing = priceOrder("dry-ice", qty, "3L", false, settings);
+  const pricing = priceOrder("dry-ice", qty, "3L", false, settings, catalog);
   return (
     <Screen
       header={<MobileHeader title={t(product.name)} back />}
@@ -415,12 +439,11 @@ function DryIceDetails() {
   );
 }
 
-function GasDetails({ product }: { product: Product }) {
+function GasDetails({ product }: { product: CatalogProduct }) {
   const navigate = useNavigate();
   const { t, money } = useI18n();
   const { startDraft } = useStore();
   const [jar, setJar] = useState<JarSize>("3L");
-  const DetailIcon = PRODUCT_ICON[product.id];
   const oxygen = product.id === "oxygen";
   return (
     <Screen
@@ -440,9 +463,11 @@ function GasDetails({ product }: { product: Product }) {
         </Footer>
       }
     >
-      <div className="flex h-[200px] shrink-0 items-center justify-center rounded-[20px] border border-line bg-surface text-gold">
-        <DetailIcon size={24} />
-      </div>
+      <ProductArt
+        product={product}
+        size={24}
+        className="h-[200px] w-full shrink-0 rounded-[20px] border border-line"
+      />
       <p className="text-[15px] leading-[1.5] text-ink-2">{t(product.description)}</p>
       {oxygen && (
         <>
@@ -531,13 +556,13 @@ function useDateOptions(): DateOption[] {
 
 function useDraftSummary() {
   const { t, money } = useI18n();
-  const { draft, addresses, rewardReady, settings } = useStore();
+  const { draft, addresses, rewardReady, settings, catalog } = useStore();
   const dates = useDateOptions();
   const product = PRODUCTS[draft.product];
   const unit = t(product.unit === "kg" ? "Kg" : "L");
   const address = addresses.find((a) => a.id === draft.addressId) ?? addresses[0];
   const date = dates.find((d) => d.value === draft.date);
-  const pricing = priceOrder(draft.product, draft.qty, draft.jar, rewardReady, settings);
+  const pricing = priceOrder(draft.product, draft.qty, draft.jar, rewardReady, settings, catalog);
   const proposed = (amount: number | null) =>
     amount === null ? t("To be confirmed") : t("{a} (proposed)", { a: money(amount) });
   return {
