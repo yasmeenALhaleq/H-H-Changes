@@ -26,12 +26,15 @@ files into it. `public/icons/` is a new folder.
 | `src/customer/auth.tsx` | replace |
 | `src/i18n/ar.ts` | replace |
 | `src/lib/pwa.ts` | **new** |
-| `public/manifest.webmanifest` | **new** |
+| `public/manifest.json` | **new** |
 | `public/sw.js` | **new** |
 | `public/icons/icon-192.png` | **new** |
 | `public/icons/icon-512.png` | **new** |
 | `public/icons/maskable-512.png` | **new** |
 | `public/icons/apple-touch-icon.png` | **new** |
+
+The manifest is `manifest.json`, not `manifest.webmanifest`: Figma Make does not
+accept the `.webmanifest` extension, and browsers read either name.
 
 The same 18 files are in `bundle/update-16-nov.zip`, already in their folders.
 `bundle/HH_CO-full.zip` is the whole app with this update included.
@@ -80,7 +83,7 @@ its own icon, full screen, no browser bar.
 - The button hides itself once the app is running from the home screen.
 - Icons are made from the H&H logo (crest and letters, on the app's black).
 
-How it works: `public/manifest.webmanifest` names the app and its icons;
+How it works: `public/manifest.json` names the app and its icons;
 `public/sw.js` is the service worker. Pages are always fetched fresh first, so
 a new Publish shows up the next time the app opens; the saved copy is only used
 with no connection. Orders and accounts (Neon) are never cached — they always
