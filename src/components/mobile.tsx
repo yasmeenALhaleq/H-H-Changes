@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -7,10 +7,12 @@ import {
   Cube,
   House,
   User,
+  X,
   type Icon,
 } from "@phosphor-icons/react";
 import { useI18n } from "@/i18n";
-import { cx } from "./ui";
+import { useInstall } from "@/lib/pwa";
+import { Button, cx } from "./ui";
 
 /**
  * Phone-sized app shell. On wide viewports the customer app is shown as a centred
@@ -38,6 +40,7 @@ export function Screen({
         >
           {children}
         </main>
+        <InstallBanner />
         {footer}
         {nav && <BottomNav />}
       </div>
@@ -187,5 +190,89 @@ export function BottomNav() {
         );
       })}
     </nav>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Install banner                                                      */
+/* ------------------------------------------------------------------ */
+
+/** Screens where the install card may show — the main ones, never mid-order or mid-form. */
+const BANNER_SCREENS = ["/", "/login", "/signup", "/home", "/products", "/orders", "/profile"];
+const DISMISS_KEY = "hh.installBannerClosed";
+/** After the customer closes the card, it stays away this long. */
+const DISMISS_DAYS = 3;
+
+function dismissedRecently(): boolean {
+  try {
+    const at = Number(window.localStorage.getItem(DISMISS_KEY) ?? 0);
+    return Date.now() - at < DISMISS_DAYS * 24 * 60 * 60 * 1000;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * "H&H on your phone" card, shown on every phone and computer until the app is
+ * installed. Where the browser has its own install dialog (Android, Chrome,
+ * Edge) the button opens it; elsewhere (iPhone, Safari, Firefox) it opens the
+ * steps screen.
+ */
+export function InstallBanner() {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { t } = useI18n();
+  const install = useInstall();
+  const [closed, setClosed] = useState(dismissedRecently);
+
+  if (install.installed || closed || !BANNER_SCREENS.includes(pathname)) return null;
+
+  const close = () => {
+    setClosed(true);
+    try {
+      window.localStorage.setItem(DISMISS_KEY, String(Date.now()));
+    } catch {
+      // Without storage the card is hidden until the page reloads.
+    }
+  };
+
+  const act = async () => {
+    if (install.canPrompt) {
+      if (await install.prompt()) setClosed(true);
+      return;
+    }
+    navigate("/install");
+  };
+
+  return (
+    <aside
+      aria-label={t("H&H on your phone")}
+      className="mx-4 mb-3 flex shrink-0 flex-col gap-3.5 rounded-[18px] border border-line bg-surface p-4 shadow-[0_8px_30px_rgba(0,0,0,0.45)]"
+    >
+      <div className="flex items-start gap-3">
+        <img
+          src={`${import.meta.env.BASE_URL}icons/icon-192.png`}
+          alt=""
+          className="size-12 shrink-0 rounded-[12px] border border-line"
+        />
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-[16px] leading-6 font-bold text-ink">{t("H&H on your phone")}</span>
+          <span className="text-[13px] leading-5 text-ink-2">
+            {t("Open the app from your home screen")}
+          </span>
+        </div>
+        <button
+          type="button"
+          aria-label={t("Close")}
+          onClick={close}
+          className="-m-1 shrink-0 p-1 text-ink-3 hover:text-ink"
+        >
+          <X size={20} />
+        </button>
+      </div>
+      <Button size="md" full onClick={() => void act()}>
+        {install.canPrompt ? t("Install the app") : t("How to install")}
+      </Button>
+    </aside>
   );
 }

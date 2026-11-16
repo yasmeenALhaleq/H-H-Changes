@@ -5,7 +5,34 @@ Design source: Figma file `H-H`, page **High-Fidelity Design** (node `1:4`).
 
 After copying, run `pnpm install` once (new dependencies were added), then `pnpm dev` or `pnpm build`.
 
-## ★ 16 Nov — Add products from the admin, and install as a phone app (start here)
+## ★ 16 Nov, later — "H&H on your phone" install card (start here)
+
+**Upload these 3 files, then Publish:**
+
+- `src/components/mobile.tsx`
+- `src/customer/auth.tsx`
+- `src/i18n/ar.ts`
+
+A floating card — app icon, "H&H on your phone", "Open the app from your home
+screen", and a gold button — now sits above the bottom bar on the main screens
+(welcome, login, sign-up, home, products, my orders, profile). It shows on every
+device until the app is installed:
+
+- **Android, and Chrome / Edge on a computer:** the button reads "Install the
+  app" and opens the browser's own install dialog.
+- **iPhone, and Safari / Firefox:** the button reads "How to install" and opens
+  the steps screen (Safari's ••• → Share → Add to Home Screen).
+- **×** closes it for 3 days. Once the app is opened from the home screen the
+  card never shows.
+- It stays off the order, address and form screens so it never covers a form.
+
+The welcome screen's "Install the app on your phone" link is gone — the card
+replaces it — which is why `src/customer/auth.tsx` changes again. The Profile
+row "Install the app" stays.
+
+---
+
+## ★ 16 Nov — Add products from the admin, and install as a phone app
 
 **Upload these 18 files, each at exactly this path, then Publish.**
 Figma Make drops a folder's files straight into the folder you upload into, so

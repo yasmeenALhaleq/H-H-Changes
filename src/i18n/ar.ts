@@ -639,4 +639,10 @@ export const ar: Record<string, string> = {
     "اضغط «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».",
   "Confirm. H&H now opens from its icon, like any app.":
     "أكّد. أصبح H&H يفتح من أيقونته مثل أي تطبيق.",
+
+  // Install card
+  "H&H on your phone": "H&H على هاتفك",
+  "Open the app from your home screen": "افتح التطبيق من الشاشة الرئيسية",
+  "How to install": "طريقة التثبيت",
+  Close: "إغلاق",
 };

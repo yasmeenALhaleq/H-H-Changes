@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Check, DeviceMobile, EnvelopeSimple } from "@phosphor-icons/react";
+import { Check, EnvelopeSimple } from "@phosphor-icons/react";
 import logo from "@/assets/hh-logo.png";
 import { useI18n } from "@/i18n";
 import { usernameProblem, useStore, type CustomerType } from "@/store";
-import { useInstall } from "@/lib/pwa";
 import { Footer, MobileHeader, Screen } from "@/components/mobile";
 import { Button, Chips, cx, Input, LanguageSwitch, LinkButton, RadioDot } from "@/components/ui";
 
@@ -26,7 +25,6 @@ function Logo({ className }: { className?: string }) {
 export function Welcome() {
   const navigate = useNavigate();
   const { t, lang, setLang } = useI18n();
-  const install = useInstall();
   return (
     <Screen
       header={<MobileHeader brand />}
@@ -68,20 +66,6 @@ export function Welcome() {
           العربية
         </button>
       </div>
-      {!install.installed && (
-        <button
-          type="button"
-          onClick={() =>
-            void (async () => {
-              if (!install.canPrompt || !(await install.prompt())) navigate("/install");
-            })()
-          }
-          className="flex items-center gap-2 self-start text-[14px] font-medium text-gold"
-        >
-          <DeviceMobile size={20} />
-          {t("Install the app on your phone")}
-        </button>
-      )}
     </Screen>
   );
 }
