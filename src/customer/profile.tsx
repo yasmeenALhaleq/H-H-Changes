@@ -1,10 +1,23 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Clock, Globe, MapPin, Phone, Question, Users } from "@phosphor-icons/react";
+import {
+  Bell,
+  Clock,
+  DeviceMobile,
+  DotsThreeVertical,
+  Export,
+  Globe,
+  MapPin,
+  Phone,
+  PlusSquare,
+  Question,
+  Users,
+} from "@phosphor-icons/react";
 import { useI18n, type Lang } from "@/i18n";
 import { usernameProblem, useStore, type CustomerType, type NotificationPrefs } from "@/store";
 import { initials } from "@/store/format";
 import { callCompany, canCall, whatsappCompany } from "@/lib/company";
+import { useInstall } from "@/lib/pwa";
 import { Footer, MobileHeader, Screen } from "@/components/mobile";
 import {
   Avatar,
@@ -24,6 +37,11 @@ export function Profile() {
   const navigate = useNavigate();
   const { t, lang } = useI18n();
   const { account, addresses, signOut } = useStore();
+  const install = useInstall();
+  // Where the browser offers its own install dialog, use it; otherwise show the steps.
+  const openInstall = async () => {
+    if (!install.canPrompt || !(await install.prompt())) navigate("/install");
+  };
   return (
     <Screen
       nav
@@ -85,6 +103,14 @@ export function Profile() {
         subtitle={t("Call or WhatsApp our team")}
         onClick={() => navigate("/profile/help")}
       />
+      {!install.installed && (
+        <ListRow
+          icon={DeviceMobile}
+          title={t("Install the app")}
+          subtitle={t("Add H&H to your phone's home screen")}
+          onClick={() => void openInstall()}
+        />
+      )}
     </Screen>
   );
 }
@@ -331,6 +357,69 @@ export function HelpContact() {
         title={t("Working hours")}
         subtitle={`${settings.opening} – ${settings.closing}`}
       />
+    </Screen>
+  );
+}
+
+/* Install the app — steps for phones without an install dialog (iPhone) */
+export function InstallApp() {
+  const navigate = useNavigate();
+  const { t } = useI18n();
+  const install = useInstall();
+  const steps = install.ios
+    ? [
+        { icon: Export, text: t("Open this page in Safari, then tap the Share button.") },
+        { icon: PlusSquare, text: t("Scroll down and tap “Add to Home Screen”.") },
+        { icon: DeviceMobile, text: t("Tap “Add”. H&H now opens from its icon, like any app.") },
+      ]
+    : [
+        { icon: DotsThreeVertical, text: t("Open this page in Chrome, then tap the ⋮ menu.") },
+        { icon: PlusSquare, text: t("Tap “Install app” or “Add to Home screen”.") },
+        { icon: DeviceMobile, text: t("Confirm. H&H now opens from its icon, like any app.") },
+      ];
+  return (
+    <Screen
+      header={<MobileHeader title={t("Install the app")} back />}
+      bodyClassName="gap-4 px-6 py-4"
+      footer={
+        <Footer>
+          {install.canPrompt ? (
+            <Button full onClick={() => void install.prompt().then((ok) => ok && navigate(-1))}>
+              {t("Install now")}
+            </Button>
+          ) : (
+            <Button full variant="outline" onClick={() => navigate(-1)}>
+              {t("Done")}
+            </Button>
+          )}
+        </Footer>
+      }
+    >
+      {install.installed ? (
+        <Card className="p-4 text-[15px] leading-[1.5] text-ink">
+          {t("H&H is already installed on this phone.")}
+        </Card>
+      ) : (
+        <>
+          <p className="text-[15px] leading-[1.5] text-ink-2">
+            {t(
+              "Add H&H to your home screen to order in one tap. It opens full screen, without the browser bar.",
+            )}
+          </p>
+          <Card className="flex flex-col gap-4 p-4">
+            {steps.map((step, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-elevated text-gold">
+                  <step.icon size={22} />
+                </span>
+                <span className="pt-2 text-[14px] leading-[1.5] text-ink">
+                  {i + 1}. {step.text}
+                </span>
+              </div>
+            ))}
+          </Card>
+        </>
+      )}
     </Screen>
   );
 }

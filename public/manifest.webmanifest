@@ -1,0 +1,20 @@
+{
+  "id": "./",
+  "name": "H&H — Medical Gases & Dry Ice",
+  "short_name": "H&H",
+  "description": "Order medical oxygen, nitrogen and dry ice for your clinic, hotel or practice, with delivery and live order tracking.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0b0a",
+  "theme_color": "#0b0b0a",
+  "lang": "ar",
+  "dir": "auto",
+  "categories": ["medical", "business", "shopping"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

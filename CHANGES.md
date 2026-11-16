@@ -5,7 +5,98 @@ Design source: Figma file `H-H`, page **High-Fidelity Design** (node `1:4`).
 
 After copying, run `pnpm install` once (new dependencies were added), then `pnpm dev` or `pnpm build`.
 
-## ⟲ Full restore — 15 Nov (start here)
+## ★ 16 Nov — Add products from the admin, and install as a phone app (start here)
+
+**Upload these 18 files, each at exactly this path, then Publish.**
+Figma Make drops a folder's files straight into the folder you upload into, so
+create any missing folder first (right-click → Create folder), then upload the
+files into it. `public/icons/` is a new folder.
+
+| Path | |
+| --- | --- |
+| `index.html` | replace — links the app manifest and the home-screen icon |
+| `src/main.tsx` | replace — switches on install-as-app support |
+| `src/App.tsx` | replace — new `/install` screen |
+| `src/store/index.tsx` | replace |
+| `src/store/format.ts` | replace |
+| `src/admin/screens.tsx` | replace |
+| `src/customer/shop.tsx` | replace |
+| `src/customer/orders.tsx` | replace |
+| `src/customer/profile.tsx` | replace |
+| `src/customer/auth.tsx` | replace |
+| `src/i18n/ar.ts` | replace |
+| `src/lib/pwa.ts` | **new** |
+| `public/manifest.webmanifest` | **new** |
+| `public/sw.js` | **new** |
+| `public/icons/icon-192.png` | **new** |
+| `public/icons/icon-512.png` | **new** |
+| `public/icons/maskable-512.png` | **new** |
+| `public/icons/apple-touch-icon.png` | **new** |
+
+The same 18 files are in `bundle/update-16-nov.zip`, already in their folders.
+`bundle/HH_CO-full.zip` is the whole app with this update included.
+
+### 1. Adding products from the admin
+
+Products → **Add product** opens an empty form: name in English and Arabic,
+unit (kilogram, liter or piece), minimum / step / maximum order, price,
+description in both languages, photo, and whether it shows in the customer app.
+Saving puts it straight into the customer app — home tiles, products list,
+product screen, order form, review, confirmation, my orders, and on the admin
+side the orders, deliveries and reports.
+
+- **Edit** an added product: every field can be changed.
+- **Dry ice, nitrogen and oxygen** keep their name, unit and order limits as
+  built, because the order screens have rules of their own for them (oxygen
+  jars, the nitrogen note). Their price, photo, visibility and both
+  descriptions are editable as before, and they now take an Arabic description too.
+- **Delete** is offered only for an added product with no orders. A product
+  that has orders can only be hidden, so old orders keep showing its name.
+- An added product with no price shows "To be confirmed", like nitrogen.
+
+Database (already applied, nothing to upload): `products` gained
+`name_en`, `name_ar`, `description_ar`, `unit`, `min_qty`, `step_qty`,
+`max_qty`, `built_in`, `sort`; new functions `admin_create_product`,
+`admin_update_product`, `admin_delete_product`, all refusing anyone without
+the admin role. `orders.product` is now checked against the products table
+instead of the fixed list of three, so an order for an added product is
+accepted and an order for an unknown product is refused. Tested on the live
+database inside a transaction that was rolled back: add, edit, the limits
+check, refusing to delete a built-in product or one with orders, deleting an
+unused one.
+
+The old `admin_save_product` function is left in place, so the site keeps
+working until the new files are published.
+
+### 2. Install as an app (PWA)
+
+The published site can now be installed on a phone and opens like an app —
+its own icon, full screen, no browser bar.
+
+- **Android (Chrome):** the welcome screen and Profile show "Install the app";
+  tapping it opens Chrome's own install dialog.
+- **iPhone (Safari):** Apple has no install dialog, so the same button opens a
+  short screen with the steps (Share → Add to Home Screen).
+- The button hides itself once the app is running from the home screen.
+- Icons are made from the H&H logo (crest and letters, on the app's black).
+
+How it works: `public/manifest.webmanifest` names the app and its icons;
+`public/sw.js` is the service worker. Pages are always fetched fresh first, so
+a new Publish shows up the next time the app opens; the saved copy is only used
+with no connection. Orders and accounts (Neon) are never cached — they always
+come live.
+
+The service worker runs on the published site only, not inside the Figma Make
+preview, so the preview never shows a stale copy. To try installing, open
+`https://hh-co.figma.site` on the phone.
+
+Checked in Chrome: the manifest has no errors, the service worker activates,
+Chrome reports the site installable with no problems, and the app still opens
+with the connection off.
+
+---
+
+## ⟲ Full restore — 15 Nov
 
 HH_CO went back to a blank white page. Two reasons, both visible in the repo:
 
@@ -61,8 +152,9 @@ Nothing to redo on the database.
 The same 21 files are in `bundle/HH_CO-full.zip`, already in their folders —
 unzip it at the root of HH_CO and they land in the right places.
 
-Do not touch `src/main.tsx`, `index.html`, `vite.config.ts`, `tsconfig.json`
-or `.figma/` — they stay as they are in HH_CO.
+Do not touch `vite.config.ts`, `tsconfig.json` or `.figma/` — they stay as they
+are in HH_CO. (Since 16 Nov, `src/main.tsx` and `index.html` are part of the
+update — see the section above.)
 
 ### 3. Then
 

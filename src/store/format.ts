@@ -1,26 +1,60 @@
 import { useI18n } from "@/i18n";
-import { PRODUCTS, type JarSize, type Order, type ProductId } from "./index";
+import {
+  findProduct,
+  useStore,
+  type CatalogProduct,
+  type JarSize,
+  type Order,
+  type ProductId,
+} from "./index";
+
+/**
+ * Product text in the current language. The built-in products take their Arabic
+ * from the copy; products the operations team added carry their own Arabic name.
+ */
+export function useProductText() {
+  const { t, lang } = useI18n();
+  const { catalog } = useStore();
+  const product = (p: CatalogProduct | ProductId) =>
+    typeof p === "string" ? findProduct(catalog, p) : p;
+  return {
+    product,
+    name: (p: CatalogProduct | ProductId) => {
+      const item = product(p);
+      return lang === "ar" && item.nameAr ? item.nameAr : t(item.name);
+    },
+    description: (p: CatalogProduct | ProductId) => {
+      const item = product(p);
+      return lang === "ar" && item.descriptionAr ? item.descriptionAr : t(item.description);
+    },
+    /** Short unit next to a quantity: `kg`, `L`, `pcs`. */
+    unit: (p: CatalogProduct | ProductId) => t(product(p).unit),
+    /** Unit as a label: `Kilogram (kg)`, `Jar (3L / 8L)`. */
+    unitLong: (p: CatalogProduct | ProductId) => t(product(p).unitLong),
+  };
+}
 
 /** Text helpers for describing orders in the current language. */
 export function useOrderText() {
   const { t, money } = useI18n();
+  const products = useProductText();
 
   const qty = (product: ProductId, amount: number, jar?: JarSize): string => {
     if (product === "oxygen" && jar) {
       const size = Number.parseInt(jar, 10);
       if (amount % size === 0) return `${t(`${jar} jar`)} × ${amount / size}`;
     }
-    return `${amount} ${t(PRODUCTS[product].unit)}`;
+    return `${amount} ${products.unit(product)}`;
   };
 
   return {
     qty,
     /** `Dry Ice 10 kg` — used on customer order cards. */
     line: (order: Order) =>
-      `${t(order.product === "nitrogen" ? "Liquid Nitrogen" : PRODUCTS[order.product].name)} ${qty(order.product, order.qty, order.jar)}`,
+      `${order.product === "nitrogen" ? t("Liquid Nitrogen") : products.name(order.product)} ${qty(order.product, order.qty, order.jar)}`,
     /** `Dry Ice • 10 kg` — used in history lists and admin tables. */
     bullet: (order: Order) =>
-      `${t(PRODUCTS[order.product].name)} • ${qty(order.product, order.qty, order.jar)}`,
+      `${products.name(order.product)} • ${qty(order.product, order.qty, order.jar)}`,
     total: (order: Order) => (order.total === null ? t("To be confirmed") : money(order.total)),
   };
 }

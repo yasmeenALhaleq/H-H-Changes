@@ -20,16 +20,15 @@ import {
   isActive,
   JAR_PRICE,
   priceOrder,
-  PRODUCT_LIST,
+  type BuiltInId,
   type CatalogProduct,
-  PRODUCTS,
-  useStore,
+  findProduct,
   type JarSize,
   type Order,
-  type Product,
-  type ProductId,
+  type Unit,
+  useStore,
 } from "@/store";
-import { useOrderText } from "@/store/format";
+import { useOrderText, useProductText } from "@/store/format";
 import { Footer, IconButton, MobileHeader, Screen } from "@/components/mobile";
 import {
   Badge,
@@ -49,14 +48,21 @@ import {
   TextArea,
 } from "@/components/ui";
 
-export const PRODUCT_ICON: Record<ProductId, Icon> = {
+export const PRODUCT_ICON: Record<BuiltInId, Icon> = {
   "dry-ice": Snowflake,
   nitrogen: Drop,
   oxygen: Cylinder,
 };
 
-const isProduct = (id: string | undefined): id is ProductId =>
-  id === "dry-ice" || id === "nitrogen" || id === "oxygen";
+/** The product's own icon, or a parcel for a product the operations team added. */
+export const productIcon = (id: string): Icon =>
+  (PRODUCT_ICON as Record<string, Icon | undefined>)[id] ?? Package;
+
+/** Short "sold by" line under a product tile. */
+const UNIT_TILE: Record<Unit, string> = { kg: "Kg", L: "Liter", pcs: "Piece" };
+const UNIT_TILE_PLURAL: Record<Unit, string> = { kg: "Kg", L: "Liters", pcs: "Pieces" };
+/** Unit next to a quantity on the order screens. */
+const UNIT_QTY: Record<Unit, string> = { kg: "Kg", L: "L", pcs: "pcs" };
 
 /* ------------------------------------------------------------------ */
 /* Shared pieces                                                       */
@@ -152,7 +158,8 @@ function LoyaltyCard() {
 /* Home                                                                */
 /* ------------------------------------------------------------------ */
 
-const tileUnit: Record<ProductId, string> = { "dry-ice": "Kg", nitrogen: "Liter", oxygen: "Jar" };
+const tileUnit = (product: CatalogProduct) =>
+  product.id === "oxygen" ? "Jar" : UNIT_TILE[product.unit];
 
 /** The product photo when the operations team has set one, otherwise its icon. */
 function ProductArt({
@@ -164,11 +171,15 @@ function ProductArt({
   size: number;
   className: string;
 }) {
-  const { t } = useI18n();
-  const Fallback = PRODUCT_ICON[product.id];
+  const names = useProductText();
+  const Fallback = productIcon(product.id);
   if (product.image)
     return (
-      <img src={product.image} alt={t(product.name)} className={cx(className, "object-cover")} />
+      <img
+        src={product.image}
+        alt={names.name(product)}
+        className={cx(className, "object-cover")}
+      />
     );
   return (
     <span className={cx(className, "flex items-center justify-center bg-elevated text-gold")}>
@@ -182,6 +193,7 @@ export function Home() {
   const navigate = useNavigate();
   const { t } = useI18n();
   const { account, orders, fresh, catalog } = useStore();
+  const names = useProductText();
   const active = orders.filter((o) => o.mine && isActive(o));
   const shelf = catalog.filter((p) => p.active);
 
@@ -225,8 +237,8 @@ export function Home() {
             className="flex flex-col items-center gap-2 rounded-[12px] border border-line bg-surface p-3"
           >
             <ProductArt product={product} size={24} className="size-12 rounded-[12px]" />
-            <span className="text-[14px] font-semibold text-ink">{t(product.name)}</span>
-            <span className="text-[12px] text-ink-2">{t(tileUnit[product.id])}</span>
+            <span className="text-[14px] font-semibold text-ink">{names.name(product)}</span>
+            <span className="text-[12px] text-ink-2">{t(tileUnit(product))}</span>
           </button>
         ))}
       </div>
@@ -250,17 +262,15 @@ export function Home() {
   );
 }
 
-const newAccountUnit: Record<ProductId, string> = {
-  "dry-ice": "Kg",
-  nitrogen: "Liters",
-  oxygen: "Jar 3L / 8L",
-};
+const newAccountUnit = (product: CatalogProduct) =>
+  product.id === "oxygen" ? "Jar 3L / 8L" : UNIT_TILE_PLURAL[product.unit];
 
 /* Home — No Active Orders (new account) */
 function HomeNewAccount() {
   const navigate = useNavigate();
   const { t } = useI18n();
   const { account, catalog } = useStore();
+  const names = useProductText();
   const shelf = catalog.filter((p) => p.active);
   return (
     <Screen nav header={<MobileHeader brand bell />} bodyClassName="gap-5 px-6 pt-5 pb-4">
@@ -291,8 +301,8 @@ function HomeNewAccount() {
             className="flex flex-col items-start gap-2 rounded-[14px] border border-line bg-surface p-3 text-start"
           >
             <ProductArt product={product} size={24} className="size-10 rounded-[10px]" />
-            <span className="text-[14px] font-semibold text-ink">{t(product.name)}</span>
-            <span className="text-[12px] text-ink-2">{t(newAccountUnit[product.id])}</span>
+            <span className="text-[14px] font-semibold text-ink">{names.name(product)}</span>
+            <span className="text-[12px] text-ink-2">{t(newAccountUnit(product))}</span>
           </button>
         ))}
       </div>
@@ -322,6 +332,7 @@ export function Products() {
   const navigate = useNavigate();
   const { t, money } = useI18n();
   const { catalog } = useStore();
+  const names = useProductText();
   const shelf = catalog.filter((p) => p.active);
   const priceLabel = (product: CatalogProduct) => {
     if (product.id === "oxygen")
@@ -340,9 +351,9 @@ export function Products() {
         >
           <ProductArt product={product} size={32} className="size-[72px] shrink-0 rounded-[12px]" />
           <span className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="text-[16px] font-semibold text-ink">{t(product.name)}</span>
+            <span className="text-[16px] font-semibold text-ink">{names.name(product)}</span>
             <span className="text-[13px] text-ink-2">
-              {t("Unit: {u}", { u: t(product.unitLong) })}
+              {t("Unit: {u}", { u: names.unitLong(product) })}
             </span>
             <span className="text-[13px] font-medium text-gold">
               {t("Proposed: {p}", { p: priceLabel(product) })}
@@ -359,33 +370,35 @@ export function Products() {
 export function ProductDetails() {
   const { id } = useParams();
   const { catalog } = useStore();
-  if (!isProduct(id)) return <Navigate to="/products" replace />;
   const product = catalog.find((p) => p.id === id);
-  // A product the admin switched off is no longer orderable.
+  // A product the admin switched off, or deleted, is no longer orderable.
   if (!product || !product.active) return <Navigate to="/products" replace />;
-  return id === "dry-ice" ? <DryIceDetails /> : <GasDetails product={product} />;
+  // Nitrogen and oxygen have their own screen; dry ice and every added product pick a quantity here.
+  return product.id === "nitrogen" || product.id === "oxygen" ? (
+    <GasDetails product={product} />
+  ) : (
+    <QuantityDetails product={product} />
+  );
 }
 
-function DryIceDetails() {
+/* Product Details — Dry Ice, and products added from the dashboard */
+function QuantityDetails({ product }: { product: CatalogProduct }) {
   const navigate = useNavigate();
   const { t, money } = useI18n();
+  const names = useProductText();
   const { startDraft, settings, catalog } = useStore();
-  const product = catalog.find((p) => p.id === "dry-ice") ?? {
-    ...PRODUCTS["dry-ice"],
-    active: true,
-    image: null,
-  };
   const [qty, setQty] = useState(product.detailQty);
-  const pricing = priceOrder("dry-ice", qty, "3L", false, settings, catalog);
+  const pricing = priceOrder(product.id, qty, "3L", false, settings, catalog);
+  const unit = names.unit(product);
   return (
     <Screen
-      header={<MobileHeader title={t(product.name)} back />}
+      header={<MobileHeader title={names.name(product)} back />}
       bodyClassName="gap-3.5 px-6 pt-4 pb-3"
       footer={
         <Footer className="pb-6">
           <div className="flex items-center gap-4">
             <div className="flex flex-col gap-1.5">
-              <span className="text-[12px] text-ink-2">{t("Quantity ({u})", { u: t("kg") })}</span>
+              <span className="text-[12px] text-ink-2">{t("Quantity ({u})", { u: unit })}</span>
               <QuantityStepper
                 value={qty}
                 onChange={setQty}
@@ -397,18 +410,20 @@ function DryIceDetails() {
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="text-[12px] text-ink-2">{t("Total (proposed)")}</span>
               <span className="text-[20px] font-bold text-gold">
-                {money(pricing.subtotal ?? 0)}
+                {pricing.subtotal === null ? t("To be confirmed") : money(pricing.subtotal)}
               </span>
-              <span className="text-[12px] text-ink-3">
-                {t("{q} × {p}", { q: `${qty} ${t("kg")}`, p: money(product.price ?? 0) })}
-              </span>
+              {product.price !== null && (
+                <span className="text-[12px] text-ink-3">
+                  {t("{q} × {p}", { q: `${qty} ${unit}`, p: money(product.price) })}
+                </span>
+              )}
             </div>
           </div>
           <Button
             full
             onClick={() => {
-              startDraft("dry-ice", { qty });
-              navigate("/order/dry-ice");
+              startDraft(product.id, { qty });
+              navigate(`/order/${product.id}`);
             }}
           >
             {t("Add to order")}
@@ -416,17 +431,21 @@ function DryIceDetails() {
         </Footer>
       }
     >
-      <div className="flex h-28 shrink-0 items-center justify-center rounded-[16px] bg-elevated text-gold">
-        <Snowflake size={24} />
-      </div>
-      <h2 className="text-[26px] font-bold text-ink">{t(product.name)}</h2>
-      <p className="text-[13px] leading-5 text-ink-2">{t(product.description)}</p>
+      <ProductArt product={product} size={24} className="h-28 w-full shrink-0 rounded-[16px]" />
+      <h2 className="text-[26px] font-bold text-ink">{names.name(product)}</h2>
+      {names.description(product) && (
+        <p className="text-[13px] leading-5 text-ink-2">{names.description(product)}</p>
+      )}
       <Card className="flex flex-col gap-2.5 p-3.5">
-        <KeyValue label={t("Unit of Measurement")} value={t(product.unitLong)} />
-        <KeyValue label={t("Minimum order")} value={`${product.min} ${t("kg")}`} />
+        <KeyValue label={t("Unit of Measurement")} value={names.unitLong(product)} />
+        <KeyValue label={t("Minimum order")} value={`${product.min} ${unit}`} />
         <KeyValue
           label={t("Price (proposed)")}
-          value={t("{a} / {u}", { a: money(product.price ?? 0), u: t("kg") })}
+          value={
+            product.price === null
+              ? t("To be confirmed")
+              : t("{a} / {u}", { a: money(product.price), u: unit })
+          }
         />
       </Card>
       <div className="flex items-center gap-2">
@@ -442,12 +461,13 @@ function DryIceDetails() {
 function GasDetails({ product }: { product: CatalogProduct }) {
   const navigate = useNavigate();
   const { t, money } = useI18n();
+  const names = useProductText();
   const { startDraft } = useStore();
   const [jar, setJar] = useState<JarSize>("3L");
   const oxygen = product.id === "oxygen";
   return (
     <Screen
-      header={<MobileHeader title={t(product.name)} back />}
+      header={<MobileHeader title={names.name(product)} back />}
       bodyClassName="gap-4 px-6 py-4"
       footer={
         <Footer>
@@ -468,7 +488,7 @@ function GasDetails({ product }: { product: CatalogProduct }) {
         size={24}
         className="h-[200px] w-full shrink-0 rounded-[20px] border border-line"
       />
-      <p className="text-[15px] leading-[1.5] text-ink-2">{t(product.description)}</p>
+      <p className="text-[15px] leading-[1.5] text-ink-2">{names.description(product)}</p>
       {oxygen && (
         <>
           <p className="text-[14px] font-medium text-ink">{t("Choose jar size")}</p>
@@ -483,7 +503,7 @@ function GasDetails({ product }: { product: CatalogProduct }) {
         </>
       )}
       <Card className="flex flex-col p-3.5">
-        <KeyValue label={t("Unit of Measurement")} value={t(product.unitLong)} />
+        <KeyValue label={t("Unit of Measurement")} value={names.unitLong(product)} />
         {oxygen ? (
           <>
             <KeyValue
@@ -558,8 +578,8 @@ function useDraftSummary() {
   const { t, money } = useI18n();
   const { draft, addresses, rewardReady, settings, catalog } = useStore();
   const dates = useDateOptions();
-  const product = PRODUCTS[draft.product];
-  const unit = t(product.unit === "kg" ? "Kg" : "L");
+  const product = findProduct(catalog, draft.product);
+  const unit = t(UNIT_QTY[product.unit]);
   const address = addresses.find((a) => a.id === draft.addressId) ?? addresses[0];
   const date = dates.find((d) => d.value === draft.date);
   const pricing = priceOrder(draft.product, draft.qty, draft.jar, rewardReady, settings, catalog);
@@ -610,17 +630,19 @@ export function OrderForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { t } = useI18n();
-  const { draft, setDraft, startDraft, addresses } = useStore();
+  const names = useProductText();
+  const { draft, setDraft, startDraft, addresses, catalog } = useStore();
   const dates = useDateOptions();
   const s = useDraftSummary();
+  const listed = catalog.find((p) => p.id === id && p.active);
 
   // Opening the form for another product than the one in progress starts a new draft.
   useEffect(() => {
-    if (isProduct(id) && id !== draft.product) startDraft(id);
-  }, [id, draft.product, startDraft]);
+    if (listed && listed.id !== draft.product) startDraft(listed.id);
+  }, [listed, draft.product, startDraft]);
 
-  if (!isProduct(id)) return <Navigate to="/products" replace />;
-  const product = PRODUCTS[id];
+  if (!listed || !id) return <Navigate to="/products" replace />;
+  const product = listed;
   const reorder = draft.reorderOf !== undefined;
   const range = {
     min: `${product.min} ${s.unit}`,
@@ -657,7 +679,7 @@ export function OrderForm() {
       )}
 
       <Field label={t("Product")}>
-        <span className="flex h-11 items-center text-ink-3">{t(product.name)}</span>
+        <span className="flex h-11 items-center text-ink-3">{names.name(product)}</span>
       </Field>
 
       {id === "oxygen" && (
@@ -756,6 +778,7 @@ export function OrderForm() {
 export function OrderReview() {
   const navigate = useNavigate();
   const { t } = useI18n();
+  const names = useProductText();
   const { draft, setDraft } = useStore();
   const s = useDraftSummary();
 
@@ -783,7 +806,7 @@ export function OrderReview() {
           value={
             draft.product === "oxygen"
               ? `${t("Oxygen")} · ${t(`${draft.jar} Jar`)}`
-              : t(s.product.name)
+              : names.name(s.product)
           }
         />
         <KeyValue label={t("Quantity")} value={s.qtyLabel} />
@@ -934,6 +957,7 @@ export function OrderConfirmation() {
   const { t } = useI18n();
   const { orders, startDraft } = useStore();
   const text = useOrderText();
+  const names = useProductText();
   const order = orders.find((o) => o.uid === uid);
   if (!order) return <Navigate to="/home" replace />;
 
@@ -977,7 +1001,7 @@ export function OrderConfirmation() {
       </p>
       <Card className="flex flex-col gap-2.5 p-4">
         <KeyValue label={t("Order number")} value={`#${order.id}`} />
-        <KeyValue label={t("Product")} value={t(PRODUCTS[order.product].name)} />
+        <KeyValue label={t("Product")} value={names.name(order.product)} />
         <KeyValue label={t("Quantity")} value={text.qty(order.product, order.qty, order.jar)} />
         <KeyValue label={t("Delivery address")} value={t(order.address)} />
         <KeyValue label={t("Expected delivery")} value={t(order.slot)} />

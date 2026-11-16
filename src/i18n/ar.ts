@@ -592,4 +592,50 @@ export const ar: Record<string, string> = {
   "Reward discount": "نسبة الخصم",
   "Prices shown are proposed and not final until confirmed by the company.":
     "الأسعار المعروضة تقديرية وليست نهائية حتى تؤكدها الشركة.",
+
+  // Adding and deleting products
+  "Product name (English)": "اسم المنتج (بالإنجليزية)",
+  "Product name (Arabic)": "اسم المنتج (بالعربية)",
+  "Enter the product name.": "أدخل اسم المنتج.",
+  "Enter the product name to save.": "أدخل اسم المنتج لتتمكن من الحفظ.",
+  "Leave empty while the price is not confirmed": "اتركه فارغًا إذا لم يُعتمد السعر بعد",
+  "Minimum order ({u})": "الحد الأدنى للطلب ({u})",
+  "Step ({u})": "مقدار الزيادة ({u})",
+  "Maximum order ({u})": "الحد الأقصى للطلب ({u})",
+  "Enter whole numbers of 1 or more.": "أدخل أرقامًا صحيحة من 1 فأكثر.",
+  "The maximum must be at least the minimum.": "يجب ألا يقل الحد الأقصى عن الحد الأدنى.",
+  "Description (English)": "الوصف (بالإنجليزية)",
+  "Description (Arabic)": "الوصف (بالعربية)",
+  "Delete product": "حذف المنتج",
+  "Delete this product for good?": "حذف هذا المنتج نهائيًا؟",
+  "This product has orders, so it cannot be deleted. Hide it instead.":
+    "لهذا المنتج طلبات، لذلك لا يمكن حذفه. يمكنك إخفاؤه بدلًا من ذلك.",
+  "Only an admin may add a product": "إضافة المنتجات متاحة للمسؤول فقط",
+  "The product needs an English name": "يجب إدخال اسم المنتج بالإنجليزية",
+  "Built-in products cannot be deleted; hide them instead":
+    "لا يمكن حذف المنتجات الأساسية، يمكنك إخفاؤها بدلًا من ذلك",
+  pcs: "قطعة",
+  Piece: "قطعة",
+  Pieces: "قطع",
+  "Piece (pcs)": "قطعة",
+
+  // Install as an app
+  "Install the app": "تثبيت التطبيق",
+  "Install the app on your phone": "ثبّت التطبيق على هاتفك",
+  "Add H&H to your phone's home screen": "أضف H&H إلى الشاشة الرئيسية لهاتفك",
+  "Install now": "ثبّت الآن",
+  Done: "تم",
+  "H&H is already installed on this phone.": "تطبيق H&H مثبّت على هذا الهاتف.",
+  "Add H&H to your home screen to order in one tap. It opens full screen, without the browser bar.":
+    "أضف H&H إلى الشاشة الرئيسية لتطلب بلمسة واحدة. يفتح بملء الشاشة، بدون شريط المتصفح.",
+  "Open this page in Safari, then tap the Share button.":
+    "افتح هذه الصفحة في Safari، ثم اضغط زر المشاركة.",
+  "Scroll down and tap “Add to Home Screen”.": "انزل للأسفل واضغط «إضافة إلى الشاشة الرئيسية».",
+  "Tap “Add”. H&H now opens from its icon, like any app.":
+    "اضغط «إضافة». أصبح H&H يفتح من أيقونته مثل أي تطبيق.",
+  "Open this page in Chrome, then tap the ⋮ menu.": "افتح هذه الصفحة في Chrome، ثم اضغط قائمة ⋮.",
+  "Tap “Install app” or “Add to Home screen”.":
+    "اضغط «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».",
+  "Confirm. H&H now opens from its icon, like any app.":
+    "أكّد. أصبح H&H يفتح من أيقونته مثل أي تطبيق.",
 };

@@ -31,6 +31,7 @@ import { CancelOrder, MyOrders, OrderDetails, OrderTracking } from "@/customer/o
 import {
   BusinessInformation,
   HelpContact,
+  InstallApp,
   LanguageSettings,
   NotificationSettings,
   Profile,
@@ -94,6 +95,7 @@ export default function App() {
               <Route path="/verify-code" element={<Otp mode="reset" />} />
               <Route path="/new-password" element={<NewPassword />} />
               <Route path="/password-updated" element={<AuthSuccess kind="password" />} />
+              <Route path="/install" element={<InstallApp />} />
 
               {/* Customer — signed-in area */}
               <Route element={<CustomerOnly />}>

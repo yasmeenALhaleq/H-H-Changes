@@ -1,21 +1,23 @@
 import { useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
-import { Image as ImageIcon } from "@phosphor-icons/react";
+import { Image as ImageIcon, Plus, Trash } from "@phosphor-icons/react";
 import { useI18n } from "@/i18n";
 import {
   canCancel,
   isActive,
   priceOrder,
-  PRODUCT_LIST,
-  PRODUCTS,
   PRICED_BY_JAR,
   STATUS_LABEL,
+  UNIT_LONG,
   useStore,
+  type CatalogProduct,
   type Order,
   type OrderStatus,
+  type ProductInput,
   type Settings,
+  type Unit,
 } from "@/store";
-import { useOrderText } from "@/store/format";
+import { useOrderText, useProductText } from "@/store/format";
 import { imageProblemText, imageToDataUrl } from "@/lib/image";
 import {
   Badge,
@@ -264,9 +266,21 @@ export function Dashboard() {
 export function AdminProducts() {
   const navigate = useNavigate();
   const { t, money } = useI18n();
+  const names = useProductText();
   const { catalog } = useStore();
   return (
-    <AdminPage title={t("Products")} actions={<AdminUser />}>
+    <AdminPage
+      title={t("Products")}
+      actions={
+        <div className="flex items-center gap-4">
+          <Button size="sm" onClick={() => navigate("/admin/products/new")}>
+            <Plus size={18} />
+            {t("Add product")}
+          </Button>
+          <AdminUser />
+        </div>
+      }
+    >
       <Table
         endLast
         columns={[
@@ -281,7 +295,7 @@ export function AdminProducts() {
         rows={catalog.map((product) => ({
           key: product.id,
           cells: [
-            t(product.name),
+            names.name(product),
             product.image ? (
               <img
                 key="i"
@@ -294,12 +308,12 @@ export function AdminProducts() {
                 —
               </span>
             ),
-            t(product.unitLong),
+            names.unitLong(product),
             product.price === null
               ? t("To be confirmed")
-              : t("{a} / {u}", { a: money(product.price), u: t(product.unit) }),
-            `${product.min} ${t(product.unit)}`,
-            `${product.step} ${t(product.unit)}`,
+              : t("{a} / {u}", { a: money(product.price), u: names.unit(product) }),
+            `${product.min} ${names.unit(product)}`,
+            `${product.step} ${names.unit(product)}`,
             <Badge key="s" tone={product.active ? "muted" : "warn"}>
               {t(product.active ? "Active" : "Hidden")}
             </Badge>,
@@ -314,76 +328,177 @@ export function AdminProducts() {
   );
 }
 
+const UNITS: Unit[] = ["kg", "L", "pcs"];
+
+/** Whole numbers only, for the order limits. */
+const wholeNumber = (value: string) => value.replace(/\D/g, "").slice(0, 6);
+
+/** The editor's starting values: the product as saved, or an empty new one. */
+function formFrom(product: CatalogProduct | undefined) {
+  return {
+    name: product?.name ?? "",
+    nameAr: product?.nameAr ?? "",
+    unit: (product?.unit ?? "kg") as Unit,
+    min: String(product?.min ?? 1),
+    step: String(product?.step ?? 1),
+    max: String(product?.max ?? 100),
+    price: product?.price?.toFixed(2) ?? "",
+    description: product?.description ?? "",
+    descriptionAr: product?.descriptionAr ?? "",
+    active: product?.active ?? true,
+    image: product?.image ?? null,
+  };
+}
+
 /* Admin — Add / Edit Product */
 export function ProductEditor() {
   const { id } = useParams();
+  const isNew = id === "new";
   const navigate = useNavigate();
-  const { t, money } = useI18n();
-  const { catalog, saveProduct } = useStore();
-  const product = catalog.find((p) => p.id === id);
+  const { t, money, lang } = useI18n();
+  const names = useProductText();
+  const { catalog, saveProduct, createProduct, deleteProduct, orders } = useStore();
+  const product = isNew ? undefined : catalog.find((p) => p.id === id);
 
-  const [price, setPrice] = useState(product?.price?.toFixed(2) ?? "");
-  const [description, setDescription] = useState(product?.description ?? "");
-  const [active, setActive] = useState(product?.active ?? true);
-  const [image, setImage] = useState<string | null>(product?.image ?? null);
+  const [form, setForm] = useState(() => formFrom(product));
   const [failure, setFailure] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [working, setWorking] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  if (!product) return <Navigate to="/admin/products" replace />;
+  if (!isNew && !product) return <Navigate to="/admin/products" replace />;
 
-  const byJar = PRICED_BY_JAR.includes(product.id);
-  const parsedPrice = price.trim() === "" ? null : Number.parseFloat(price);
+  // The built-in three keep their name, unit and order limits; the order screens depend on them.
+  const locked = Boolean(product?.builtIn);
+  const byJar = product ? PRICED_BY_JAR.includes(product.id) : false;
+  const hasOrders = product ? orders.some((o) => o.product === product.id) : false;
+
+  const parsedPrice = form.price.trim() === "" ? null : Number.parseFloat(form.price);
   const priceBroken = parsedPrice !== null && !(Number.isFinite(parsedPrice) && parsedPrice >= 0);
-  const dirty =
-    (byJar ? false : (parsedPrice ?? null) !== (product.price ?? null)) ||
-    description !== product.description ||
-    active !== product.active ||
-    image !== product.image;
+  const min = Number.parseInt(form.min, 10);
+  const step = Number.parseInt(form.step, 10);
+  const max = Number.parseInt(form.max, 10);
+  const limitsBroken =
+    !locked &&
+    (!(min >= 1) || !(step >= 1) || !(max >= 1)
+      ? "Enter whole numbers of 1 or more."
+      : max < min
+        ? "The maximum must be at least the minimum."
+        : null);
+  const nameMissing = !locked && form.name.trim() === "";
 
-  const touched = () => {
+  const input: ProductInput = {
+    name: form.name,
+    nameAr: form.nameAr,
+    unit: form.unit,
+    min: locked && product ? product.min : min,
+    step: locked && product ? product.step : step,
+    max: locked && product ? product.max : max,
+    price: byJar && product ? product.price : parsedPrice,
+    description: form.description,
+    descriptionAr: form.descriptionAr,
+    active: form.active,
+    image: form.image,
+  };
+  const start = formFrom(product);
+  const dirty =
+    isNew || (Object.keys(start) as (keyof typeof start)[]).some((k) => start[k] !== form[k]);
+  const blocked = priceBroken || Boolean(limitsBroken) || nameMissing;
+
+  const change = (patch: Partial<typeof form>) => {
+    setForm((prev) => ({ ...prev, ...patch }));
     setSaved(false);
     setFailure(null);
   };
 
   const pickImage = async (file: File | undefined) => {
     if (!file) return;
-    touched();
     setWorking(true);
     const result = await imageToDataUrl(file);
     setWorking(false);
     if ("problem" in result) setFailure(t(imageProblemText[result.problem]));
-    else setImage(result.dataUrl);
+    else change({ image: result.dataUrl });
   };
 
   const save = async () => {
     setBusy(true);
-    const result = await saveProduct(product.id, {
-      price: byJar ? product.price : (parsedPrice ?? null),
-      description: description.trim(),
-      active,
-      image,
-    });
+    if (isNew) {
+      const result = await createProduct(input);
+      setBusy(false);
+      if ("problem" in result) setFailure(result.problem);
+      else navigate(`/admin/products/${result.id}`, { replace: true });
+      return;
+    }
+    const result = await saveProduct(product!.id, input);
     setBusy(false);
     setFailure(result);
     setSaved(result === null);
   };
 
+  const remove = async () => {
+    setBusy(true);
+    const result = await deleteProduct(product!.id);
+    setBusy(false);
+    if (result) {
+      setFailure(result);
+      setConfirmDelete(false);
+    } else navigate("/admin/products", { replace: true });
+  };
+
+  const unitShort = t(form.unit);
+  const displayName =
+    (lang === "ar" && form.nameAr.trim()) ||
+    (locked && product ? names.name(product) : form.name.trim());
+
   return (
     <AdminPage
-      title={t("Edit Product — {name}", { name: t(product.name) })}
+      title={
+        isNew
+          ? t("Add Product")
+          : t("Edit Product — {name}", { name: product ? names.name(product) : "" })
+      }
       actions={<AdminUser />}
     >
       <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <Panel title={t("Product details")} className="flex flex-col gap-4 p-6">
-          <Field label={t("Product name")}>
-            <span className="flex h-11 items-center text-ink">{t(product.name)}</span>
-          </Field>
-          <Field label={t("Unit of measurement")}>
-            <span className="flex h-11 items-center text-ink">{t(product.unitLong)}</span>
-          </Field>
+          {locked && product ? (
+            <Field label={t("Product name")}>
+              <span className="flex h-11 items-center text-ink">{names.name(product)}</span>
+            </Field>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                label={t("Product name (English)")}
+                placeholder="e.g. Carbon Dioxide"
+                value={form.name}
+                maxLength={60}
+                error={nameMissing && !isNew && t("Enter the product name.")}
+                onChange={(e) => change({ name: e.target.value })}
+              />
+              <Input
+                label={t("Product name (Arabic)")}
+                placeholder="مثال: ثاني أكسيد الكربون"
+                dir="rtl"
+                value={form.nameAr}
+                maxLength={60}
+                onChange={(e) => change({ nameAr: e.target.value })}
+              />
+            </div>
+          )}
+          {locked && product ? (
+            <Field label={t("Unit of measurement")}>
+              <span className="flex h-11 items-center text-ink">{names.unitLong(product)}</span>
+            </Field>
+          ) : (
+            <Select
+              label={t("Unit of measurement")}
+              value={form.unit}
+              onChange={(unit) => change({ unit: unit as Unit })}
+              options={UNITS.map((unit) => ({ value: unit, label: t(UNIT_LONG[unit]) }))}
+            />
+          )}
           {byJar ? (
             <Field label={t("Price per unit (proposed)")}>
               <span className="flex h-11 items-center text-ink-3">
@@ -394,43 +509,73 @@ export function ProductEditor() {
             <Input
               label={t("Price per unit (proposed)")}
               inputMode="decimal"
-              placeholder="JOD 0.00"
-              value={price}
+              placeholder={t("Leave empty while the price is not confirmed")}
+              value={form.price}
               error={priceBroken && t("Enter 0 or more.")}
-              onChange={(e) => {
-                setPrice(e.target.value.replace(/[^\d.]/g, ""));
-                touched();
-              }}
+              onChange={(e) => change({ price: e.target.value.replace(/[^\d.]/g, "") })}
             />
           )}
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label={t("Minimum order")}>
-              <span className="flex h-11 items-center text-ink-2">
-                {product.min} {t(product.unit)}
-              </span>
-            </Field>
-            <Field label={t("Step")}>
-              <span className="flex h-11 items-center text-ink-2">
-                {product.step} {t(product.unit)}
-              </span>
-            </Field>
-            <Field label={t("Maximum order")}>
-              <span className="flex h-11 items-center text-ink-2">
-                {product.max} {t(product.unit)}
-              </span>
-            </Field>
+          {locked && product ? (
+            <>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Field label={t("Minimum order")}>
+                  <span className="flex h-11 items-center text-ink-2">
+                    {product.min} {names.unit(product)}
+                  </span>
+                </Field>
+                <Field label={t("Step")}>
+                  <span className="flex h-11 items-center text-ink-2">
+                    {product.step} {names.unit(product)}
+                  </span>
+                </Field>
+                <Field label={t("Maximum order")}>
+                  <span className="flex h-11 items-center text-ink-2">
+                    {product.max} {names.unit(product)}
+                  </span>
+                </Field>
+              </div>
+              <p className="text-[12px] leading-5 text-ink-3">
+                {t("Order limits shape the order screen itself, so they stay in the code.")}
+              </p>
+            </>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Input
+                  label={t("Minimum order ({u})", { u: unitShort })}
+                  inputMode="numeric"
+                  value={form.min}
+                  onChange={(e) => change({ min: wholeNumber(e.target.value) })}
+                />
+                <Input
+                  label={t("Step ({u})", { u: unitShort })}
+                  inputMode="numeric"
+                  value={form.step}
+                  onChange={(e) => change({ step: wholeNumber(e.target.value) })}
+                />
+                <Input
+                  label={t("Maximum order ({u})", { u: unitShort })}
+                  inputMode="numeric"
+                  value={form.max}
+                  onChange={(e) => change({ max: wholeNumber(e.target.value) })}
+                />
+              </div>
+              {limitsBroken && <p className="text-[13px] text-err">{t(limitsBroken)}</p>}
+            </div>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <TextArea
+              label={t("Description (English)")}
+              value={form.description}
+              onChange={(e) => change({ description: e.target.value })}
+            />
+            <TextArea
+              label={t("Description (Arabic)")}
+              dir="rtl"
+              value={form.descriptionAr}
+              onChange={(e) => change({ descriptionAr: e.target.value })}
+            />
           </div>
-          <p className="text-[12px] leading-5 text-ink-3">
-            {t("Order limits shape the order screen itself, so they stay in the code.")}
-          </p>
-          <TextArea
-            label={t("Description")}
-            value={description}
-            onChange={(e) => {
-              setDescription(e.target.value);
-              touched();
-            }}
-          />
         </Panel>
         <div className="flex flex-col gap-6">
           <Panel title={t("Product image")} className="flex flex-col gap-3 p-5">
@@ -444,10 +589,10 @@ export function ProductEditor() {
                 e.target.value = "";
               }}
             />
-            {image ? (
+            {form.image ? (
               <img
-                src={image}
-                alt={t(product.name)}
+                src={form.image}
+                alt={displayName}
                 className="h-48 w-full rounded-[12px] border border-line object-cover"
               />
             ) : (
@@ -469,17 +614,10 @@ export function ProductEditor() {
                 disabled={working}
                 onClick={() => fileRef.current?.click()}
               >
-                {working ? t("Preparing…") : image ? t("Replace") : t("Choose image")}
+                {working ? t("Preparing…") : form.image ? t("Replace") : t("Choose image")}
               </Button>
-              {image && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setImage(null);
-                    touched();
-                  }}
-                >
+              {form.image && (
+                <Button size="sm" variant="outline" onClick={() => change({ image: null })}>
                   {t("Remove")}
                 </Button>
               )}
@@ -491,35 +629,70 @@ export function ProductEditor() {
           <Panel className="flex flex-col gap-3 p-5">
             <h2 className="text-[16px] leading-6 font-semibold text-ink">{t("Status")}</h2>
             <Toggle
-              checked={active}
+              checked={form.active}
               label={t("Show in customer app")}
-              onChange={(next) => {
-                setActive(next);
-                touched();
-              }}
+              onChange={(next) => change({ active: next })}
             />
             <p className="text-[12px] leading-5 text-ink-3">
               {t("Turned off, the product disappears from the customer app.")}
             </p>
           </Panel>
           <Panel title={t("Customer sees")} className="flex flex-col gap-2 p-5">
-            <span className="text-[15px] font-semibold text-ink">{t(product.name)}</span>
+            <span className="text-[15px] font-semibold text-ink">{displayName || "—"}</span>
             <span className="text-[13px] text-ink-2">
-              {product.price === null
+              {input.price === null
                 ? t("To be confirmed")
-                : t("{a} / {u} (proposed)", { a: money(product.price), u: t(product.unit) })}
+                : t("{a} / {u} (proposed)", {
+                    a: money(input.price),
+                    u: locked && product ? names.unit(product) : unitShort,
+                  })}
             </span>
           </Panel>
+          {product && !locked && (
+            <Panel className="flex flex-col gap-3 p-5">
+              <h2 className="text-[16px] leading-6 font-semibold text-ink">
+                {t("Delete product")}
+              </h2>
+              {hasOrders ? (
+                <p className="text-[12px] leading-5 text-ink-3">
+                  {t("This product has orders, so it cannot be deleted. Hide it instead.")}
+                </p>
+              ) : confirmDelete ? (
+                <div className="flex flex-col gap-2">
+                  <p className="text-[13px] leading-5 text-ink-2">
+                    {t("Delete this product for good?")}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setConfirmDelete(false)}>
+                      {t("Cancel")}
+                    </Button>
+                    <Button size="sm" disabled={busy} onClick={() => void remove()}>
+                      <Trash size={16} />
+                      {t("Delete")}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => setConfirmDelete(true)}>
+                  <Trash size={16} />
+                  {t("Delete product")}
+                </Button>
+              )}
+            </Panel>
+          )}
         </div>
       </div>
       <div className="flex items-center justify-end gap-3">
-        {failure && <span className="text-[13px] text-err">{failure}</span>}
+        {failure && <span className="text-[13px] text-err">{t(failure)}</span>}
+        {nameMissing && isNew && (
+          <span className="text-[13px] text-ink-3">{t("Enter the product name to save.")}</span>
+        )}
         {saved && !dirty && <span className="text-[13px] text-ok">{t("Product saved.")}</span>}
         <Button size="md" variant="outline" onClick={() => navigate("/admin/products")}>
-          {t("Back to products")}
+          {t(isNew ? "Cancel" : "Back to products")}
         </Button>
-        <Button size="md" disabled={!dirty || priceBroken || busy} onClick={() => void save()}>
-          {busy ? t("Saving…") : t("Save product")}
+        <Button size="md" disabled={!dirty || blocked || busy} onClick={() => void save()}>
+          {busy ? t("Saving…") : t(isNew ? "Add product" : "Save product")}
         </Button>
       </div>
     </AdminPage>
@@ -572,7 +745,8 @@ export function AdminOrders() {
 export function AdminOrderDetails() {
   const { uid } = useParams();
   const { t, money } = useI18n();
-  const { setOrderStatus, assignDriver, settings } = useStore();
+  const { setOrderStatus, assignDriver, settings, catalog } = useStore();
+  const names = useProductText();
   const { seenRewards, markRewardSeen } = useAdmin();
   const text = useOrderText();
   const order = useAdminOrders().find((o) => o.uid === uid);
@@ -587,8 +761,7 @@ export function AdminOrderDetails() {
   };
   const change = (status: OrderStatus) => run(setOrderStatus(order.uid, status));
 
-  const product = PRODUCTS[order.product];
-  const pricing = priceOrder(order.product, order.qty, order.jar, order.reward);
+  const pricing = priceOrder(order.product, order.qty, order.jar, order.reward, settings, catalog);
   const proposed = (amount: number | null) =>
     amount === null ? t("To be confirmed") : t("{a} (proposed)", { a: money(amount) });
   const showNotification = Boolean(order.reward) && !seenRewards.includes(order.uid);
@@ -603,7 +776,7 @@ export function AdminOrderDetails() {
           <KeyValue label={t("Customer")} value={t(order.customer)} />
           <KeyValue
             label={t("Product")}
-            value={`${t(product.name)} · ${text.qty(order.product, order.qty, order.jar)}`}
+            value={`${names.name(order.product)} · ${text.qty(order.product, order.qty, order.jar)}`}
           />
           <KeyValue label={t("Delivery slot")} value={t(order.slot)} />
           <KeyValue label={t("Address")} value={t(order.address)} />
@@ -915,6 +1088,7 @@ export function AdminDeliveries() {
   const { t, lang } = useI18n();
   const orders = useAdminOrders();
   const text = useOrderText();
+  const names = useProductText();
   const columns: Array<{ title: string; list: Order[] }> = [
     {
       title: "To dispatch ({n})",
@@ -951,7 +1125,7 @@ export function AdminDeliveries() {
                   <StatusBadge status={order.status} />
                 </span>
                 <span className="text-[14px] text-ink">
-                  {t(order.customer)} · {t(PRODUCTS[order.product].name)}{" "}
+                  {t(order.customer)} · {names.name(order.product)}{" "}
                   {text.qty(order.product, order.qty, order.jar)}
                 </span>
                 <span className="text-[12px] text-ink-2">{detail(order)}</span>
@@ -983,7 +1157,8 @@ export function AdminDeliveries() {
 /* Admin — Reports & Analytics */
 export function AdminReports() {
   const { t, money } = useI18n();
-  const { customers } = useStore();
+  const { customers, catalog } = useStore();
+  const names = useProductText();
   const orders = useAdminOrders();
   const text = useOrderText();
 
@@ -998,8 +1173,8 @@ export function AdminReports() {
     .reduce((sum, o) => sum + (o.total ?? 0), 0);
 
   // Orders per product, scaled so the tallest bar fills the chart.
-  const byProduct = PRODUCT_LIST.map((product) => ({
-    label: product.name,
+  const byProduct = catalog.map((product) => ({
+    label: names.name(product),
     count: orders.filter((o) => o.product === product.id).length,
   }));
   const tallest = Math.max(1, ...byProduct.map((p) => p.count));

@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { MapPin, Package } from "@phosphor-icons/react";
 import { useI18n } from "@/i18n";
-import { canCancel, isActive, PRODUCTS, useStore, type Order, type OrderStatus } from "@/store";
-import { useOrderText } from "@/store/format";
+import { canCancel, isActive, useStore, type Order, type OrderStatus } from "@/store";
+import { useOrderText, useProductText } from "@/store/format";
 import { Footer, MobileHeader, Screen } from "@/components/mobile";
 import {
   Avatar,
@@ -92,10 +92,11 @@ export function OrderDetails() {
   const { t, money } = useI18n();
   const { startDraft, settings } = useStore();
   const text = useOrderText();
+  const products = useProductText();
   const order = useOrder();
   if (!order) return <Navigate to="/orders" replace />;
 
-  const unit = t(PRODUCTS[order.product].unit);
+  const unit = products.unit(order.product);
   const subtotal = order.total === null ? null : order.total - settings.deliveryFee;
   const times =
     order.id === 1024

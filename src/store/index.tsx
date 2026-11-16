@@ -13,14 +13,20 @@ import { errorMessage, neon } from "@/lib/neon";
 /* Catalog                                                             */
 /* ------------------------------------------------------------------ */
 
-export type ProductId = "dry-ice" | "nitrogen" | "oxygen";
+/** The three products the app was built around; the order screens have extra rules for them. */
+export type BuiltInId = "dry-ice" | "nitrogen" | "oxygen";
+/** Any product id — a built-in one, or one the operations team added from the dashboard. */
+export type ProductId = string;
+export type Unit = "kg" | "L" | "pcs";
 export type JarSize = "3L" | "8L";
 
 export type Product = {
   id: ProductId;
   name: string;
+  /** Arabic name; empty for the built-in products, whose Arabic name is in the copy. */
+  nameAr: string;
   /** Short unit used next to quantities. */
-  unit: "kg" | "L";
+  unit: Unit;
   unitLong: string;
   /** Proposed price per unit; `null` while the company has not confirmed one. */
   price: number | null;
@@ -30,6 +36,17 @@ export type Product = {
   /** Default quantity on the product details screen. */
   detailQty: number;
   description: string;
+  /** Arabic description; when empty the English one is translated from the copy, if it can be. */
+  descriptionAr: string;
+  /** True for dry ice, nitrogen and oxygen. Their unit and order limits stay as built. */
+  builtIn: boolean;
+};
+
+/** Long unit label for a product the operations team added. */
+export const UNIT_LONG: Record<Unit, string> = {
+  kg: "Kilogram (kg)",
+  L: "Liter (L)",
+  pcs: "Piece (pcs)",
 };
 
 export const JAR_PRICE: Record<JarSize, number> = { "3L": 18, "8L": 40 };
@@ -70,10 +87,11 @@ export const DEFAULT_SETTINGS: Settings = {
   notifyLowStock: false,
 };
 
-export const PRODUCTS: Record<ProductId, Product> = {
+export const PRODUCTS: Record<BuiltInId, Product> = {
   "dry-ice": {
     id: "dry-ice",
     name: "Dry Ice",
+    nameAr: "",
     unit: "kg",
     unitLong: "Kilogram (kg)",
     price: 1.5,
@@ -82,10 +100,13 @@ export const PRODUCTS: Record<ProductId, Product> = {
     max: 100,
     detailQty: 5,
     description: "High-purity dry ice for medical, laboratory and cold-chain use. Sold by weight.",
+    descriptionAr: "",
+    builtIn: true,
   },
   nitrogen: {
     id: "nitrogen",
     name: "Nitrogen",
+    nameAr: "",
     unit: "L",
     unitLong: "Liter (L)",
     price: null,
@@ -94,10 +115,13 @@ export const PRODUCTS: Record<ProductId, Product> = {
     max: 50,
     detailQty: 25,
     description: "Liquid nitrogen for cryogenic storage, medical and laboratory use.",
+    descriptionAr: "",
+    builtIn: true,
   },
   oxygen: {
     id: "oxygen",
     name: "Oxygen",
+    nameAr: "",
     unit: "L",
     unitLong: "Jar (3L / 8L)",
     price: 6,
@@ -106,15 +130,20 @@ export const PRODUCTS: Record<ProductId, Product> = {
     max: 40,
     detailQty: 3,
     description: "Medical-grade oxygen supplied in refillable jars. Choose a 3L or 8L jar.",
+    descriptionAr: "",
+    builtIn: true,
   },
 };
 
 export const PRODUCT_LIST: Product[] = [PRODUCTS["dry-ice"], PRODUCTS.nitrogen, PRODUCTS.oxygen];
 
+export const isBuiltIn = (id: string | undefined): id is BuiltInId =>
+  id === "dry-ice" || id === "nitrogen" || id === "oxygen";
+
 /**
- * What the operations team controls per product, saved in the database. The
- * rest of a product — its unit, and the minimum, step and maximum of an order —
- * stays in the code, because the order screen is built around those numbers.
+ * A product as the customer app shows it. Everything is saved in the database.
+ * For the three built-in products the unit and the order limits stay as built,
+ * because the order screens have rules of their own for them (oxygen jars).
  */
 export type CatalogProduct = Product & {
   /** Off hides the product from the customer app. */
@@ -127,9 +156,92 @@ type ProductRow = {
   id: ProductId;
   price: number | string | null;
   description: string;
+  description_ar: string;
+  active: boolean;
+  image: string | null;
+  name_en: string;
+  name_ar: string;
+  unit: Unit;
+  min_qty: number;
+  step_qty: number;
+  max_qty: number;
+  built_in: boolean;
+  sort: number;
+};
+
+/** What the admin fills in to add or change a product. */
+export type ProductInput = {
+  name: string;
+  nameAr: string;
+  unit: Unit;
+  min: number;
+  step: number;
+  max: number;
+  price: number | null;
+  description: string;
+  descriptionAr: string;
   active: boolean;
   image: string | null;
 };
+
+/** A placeholder for an order whose product no longer exists in the catalog. */
+const UNKNOWN_PRODUCT = (id: ProductId): CatalogProduct => ({
+  id,
+  name: "Product",
+  nameAr: "",
+  unit: "pcs",
+  unitLong: UNIT_LONG.pcs,
+  price: null,
+  min: 1,
+  step: 1,
+  max: 100,
+  detailQty: 1,
+  description: "",
+  descriptionAr: "",
+  builtIn: false,
+  active: false,
+  image: null,
+});
+
+/** Looks a product up in the catalog; never fails, so an old order can always be shown. */
+export function findProduct(catalog: CatalogProduct[], id: ProductId): CatalogProduct {
+  const found = catalog.find((p) => p.id === id);
+  if (found) return found;
+  if (isBuiltIn(id)) return { ...PRODUCTS[id], active: true, image: null };
+  return UNKNOWN_PRODUCT(id);
+}
+
+/** Turns a database row into a catalog product, built-in details kept for the built-in three. */
+function toCatalogProduct(row: ProductRow): CatalogProduct {
+  const base = isBuiltIn(row.id) ? PRODUCTS[row.id] : null;
+  const price = row.price === null ? null : Number(row.price);
+  if (base)
+    return {
+      ...base,
+      price,
+      description: row.description || base.description,
+      descriptionAr: row.description_ar ?? "",
+      active: row.active,
+      image: row.image ?? null,
+    };
+  return {
+    id: row.id,
+    name: row.name_en || "Product",
+    nameAr: row.name_ar ?? "",
+    unit: row.unit,
+    unitLong: UNIT_LONG[row.unit] ?? UNIT_LONG.pcs,
+    price,
+    min: row.min_qty,
+    step: row.step_qty,
+    max: row.max_qty,
+    detailQty: row.min_qty,
+    description: row.description ?? "",
+    descriptionAr: row.description_ar ?? "",
+    builtIn: false,
+    active: row.active,
+    image: row.image ?? null,
+  };
+}
 
 /** Oxygen is priced by the jar, so its price is not the admin's to set yet. */
 export const PRICED_BY_JAR: ProductId[] = ["oxygen"];
@@ -137,7 +249,7 @@ export const PRICED_BY_JAR: ProductId[] = ["oxygen"];
 /** Price per unit for a product, taking the oxygen jar size into account. */
 export function unitPrice(product: ProductId, jar: JarSize = "3L"): number | null {
   if (product === "oxygen") return JAR_PRICE[jar] / Number.parseInt(jar, 10);
-  return PRODUCTS[product].price;
+  return isBuiltIn(product) ? PRODUCTS[product].price : null;
 }
 
 export type Pricing = {
@@ -321,11 +433,12 @@ type Store = {
   assignDriver: (uid: string, driver: string) => Promise<Failure>;
   /** Products as the operations team has them, built-in details merged in. */
   catalog: CatalogProduct[];
-  /** Admin only — saves one product's price, description, availability and photo. */
-  saveProduct: (
-    id: ProductId,
-    patch: Pick<CatalogProduct, "price" | "description" | "active" | "image">,
-  ) => Promise<Failure>;
+  /** Admin only — saves a product. For a built-in one, name, unit and limits are kept as built. */
+  saveProduct: (id: ProductId, input: ProductInput) => Promise<Failure>;
+  /** Admin only — adds a product; returns its id, or the problem. */
+  createProduct: (input: ProductInput) => Promise<{ id: ProductId } | { problem: string }>;
+  /** Admin only — deletes an added product that has no orders. */
+  deleteProduct: (id: ProductId) => Promise<Failure>;
   /** Company settings, as the operations team has saved them. */
   settings: Settings;
   /** Admin only — writes the settings back to the database. */
@@ -344,14 +457,29 @@ const emptyAccount: Account = {
   username: "",
 };
 
-const emptyDraft = (product: ProductId, addressId = ""): Draft => ({
+const emptyDraft = (product: ProductId, addressId = "", min = 1): Draft => ({
   product,
   jar: "3L",
-  qty: PRODUCTS[product].min,
+  qty: min,
   addressId,
   date: "",
   time: "",
   note: "",
+});
+
+/** Arguments for the product functions in the database. */
+const productArgs = (input: ProductInput) => ({
+  p_name_en: input.name.trim(),
+  p_name_ar: input.nameAr.trim(),
+  p_unit: input.unit,
+  p_min: input.min,
+  p_step: input.step,
+  p_max: input.max,
+  p_price: input.price,
+  p_description: input.description.trim(),
+  p_description_ar: input.descriptionAr.trim(),
+  p_active: input.active,
+  p_image: input.image,
 });
 
 /* Database rows (snake_case) → app types */
@@ -467,7 +595,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loyalty, setLoyalty] = useState(0);
-  const [draft, setDraftState] = useState<Draft>(emptyDraft("dry-ice"));
+  const [draft, setDraftState] = useState<Draft>(
+    emptyDraft("dry-ice", "", PRODUCTS["dry-ice"].min),
+  );
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [productRows, setProductRows] = useState<ProductRow[]>([]);
 
@@ -604,17 +734,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const orders = allOrders.map((o) => ({ ...o, mine: o.userId === activeUser, admin: isAdmin }));
     const myOrders = orders.filter((o) => o.mine);
     const rewardReady = loyalty >= settings.rewardEvery - 1;
-    // The built-in product is the base; whatever the admin saved sits on top.
-    const catalog: CatalogProduct[] = PRODUCT_LIST.map((product) => {
-      const row = productRows.find((r) => r.id === product.id);
-      return {
-        ...product,
-        price: row && row.price !== null ? Number(row.price) : row ? null : product.price,
-        description: row?.description || product.description,
-        active: row?.active ?? true,
-        image: row?.image ?? null,
-      };
-    });
+    // Until the database answers, the built-in three are shown as built.
+    const catalog: CatalogProduct[] =
+      productRows.length > 0
+        ? [...productRows].sort((a, b) => a.sort - b.sort).map(toCatalogProduct)
+        : PRODUCT_LIST.map((product) => ({ ...product, active: true, image: null }));
     const userId = session.status === "user" ? session.userId : null;
 
     /** Admin change to an order, through the database function that checks the admin role. */
@@ -827,7 +951,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       draft,
       setDraft: (patch) => setDraftState((prev) => ({ ...prev, ...patch })),
       startDraft: (product, patch) =>
-        setDraftState({ ...emptyDraft(product, addresses[0]?.id ?? ""), ...patch }),
+        setDraftState({
+          ...emptyDraft(product, addresses[0]?.id ?? "", findProduct(catalog, product).min),
+          ...patch,
+        }),
       submitDraft: async (slot, slotShort, address) => {
         try {
           if (!userId) return null;
@@ -880,18 +1007,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       assignDriver: (uid, driver) => adminUpdate(uid, { p_driver: driver }),
 
       catalog,
-      saveProduct: async (id, patch) => {
+      saveProduct: async (id, input) => {
         try {
-          const { data, error } = await neon.rpc("admin_save_product", {
+          const { data, error } = await neon.rpc("admin_update_product", {
             p_id: id,
-            p_price: patch.price,
-            p_description: patch.description,
-            p_active: patch.active,
-            p_image: patch.image,
+            ...productArgs(input),
           });
           if (error || !data) return errorMessage(error);
           const row = data as ProductRow;
           setProductRows((prev) => [...prev.filter((r) => r.id !== row.id), row]);
+          return null;
+        } catch (error) {
+          return errorMessage(error);
+        }
+      },
+      createProduct: async (input) => {
+        try {
+          const { data, error } = await neon.rpc("admin_create_product", productArgs(input));
+          if (error || !data) return { problem: errorMessage(error) };
+          const row = data as ProductRow;
+          setProductRows((prev) => [...prev.filter((r) => r.id !== row.id), row]);
+          return { id: row.id };
+        } catch (error) {
+          return { problem: errorMessage(error) };
+        }
+      },
+      deleteProduct: async (id) => {
+        try {
+          const { error } = await neon.rpc("admin_delete_product", { p_id: id });
+          if (error) return errorMessage(error);
+          setProductRows((prev) => prev.filter((r) => r.id !== id));
           return null;
         } catch (error) {
           return errorMessage(error);
