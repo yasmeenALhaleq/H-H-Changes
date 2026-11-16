@@ -368,9 +368,19 @@ export function InstallApp() {
   const install = useInstall();
   const steps = install.ios
     ? [
-        { icon: Export, text: t("Open this page in Safari, then tap the Share button.") },
-        { icon: PlusSquare, text: t("Scroll down and tap “Add to Home Screen”.") },
-        { icon: DeviceMobile, text: t("Tap “Add”. H&H now opens from its icon, like any app.") },
+        {
+          icon: Export,
+          text: t(
+            "Open this page in Safari, then tap ••• at the bottom (on older iPhones, the Share button).",
+          ),
+        },
+        { icon: PlusSquare, text: t("Tap “Share”, scroll down and tap “Add to Home Screen”.") },
+        {
+          icon: DeviceMobile,
+          text: t(
+            "Keep “Open as Web App” on, then tap “Add”. H&H now opens from its icon, like any app.",
+          ),
+        },
       ]
     : [
         { icon: DotsThreeVertical, text: t("Open this page in Chrome, then tap the ⋮ menu.") },

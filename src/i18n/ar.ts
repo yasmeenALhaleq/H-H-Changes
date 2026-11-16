@@ -628,11 +628,12 @@ export const ar: Record<string, string> = {
   "H&H is already installed on this phone.": "تطبيق H&H مثبّت على هذا الهاتف.",
   "Add H&H to your home screen to order in one tap. It opens full screen, without the browser bar.":
     "أضف H&H إلى الشاشة الرئيسية لتطلب بلمسة واحدة. يفتح بملء الشاشة، بدون شريط المتصفح.",
-  "Open this page in Safari, then tap the Share button.":
-    "افتح هذه الصفحة في Safari، ثم اضغط زر المشاركة.",
-  "Scroll down and tap “Add to Home Screen”.": "انزل للأسفل واضغط «إضافة إلى الشاشة الرئيسية».",
-  "Tap “Add”. H&H now opens from its icon, like any app.":
-    "اضغط «إضافة». أصبح H&H يفتح من أيقونته مثل أي تطبيق.",
+  "Open this page in Safari, then tap ••• at the bottom (on older iPhones, the Share button).":
+    "افتح هذه الصفحة في Safari، ثم اضغط ••• في الأسفل (أو زر المشاركة في الأجهزة الأقدم).",
+  "Tap “Share”, scroll down and tap “Add to Home Screen”.":
+    "اضغط «مشاركة»، ثم انزل للأسفل واضغط «إضافة إلى الشاشة الرئيسية».",
+  "Keep “Open as Web App” on, then tap “Add”. H&H now opens from its icon, like any app.":
+    "أبقِ خيار «فتح كتطبيق ويب» مفعّلًا، ثم اضغط «إضافة». أصبح H&H يفتح من أيقونته مثل أي تطبيق.",
   "Open this page in Chrome, then tap the ⋮ menu.": "افتح هذه الصفحة في Chrome، ثم اضغط قائمة ⋮.",
   "Tap “Install app” or “Add to Home screen”.":
     "اضغط «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».",
