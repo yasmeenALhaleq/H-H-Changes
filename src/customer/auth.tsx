@@ -27,6 +27,7 @@ export function Welcome() {
   const { t, lang, setLang } = useI18n();
   return (
     <Screen
+      width="auth"
       header={<MobileHeader brand />}
       bodyClassName="justify-center gap-6 px-6 pt-8 pb-6"
       footer={
@@ -89,7 +90,7 @@ export function Login() {
   };
 
   return (
-    <Screen bodyClassName="relative px-6 pt-14 pb-10">
+    <Screen width="auth" bodyClassName="relative px-6 pt-14 pb-10">
       <div
         aria-hidden
         className="pointer-events-none absolute -top-[210px] left-1/2 size-[420px] -translate-x-1/2 rounded-full"
@@ -97,7 +98,7 @@ export function Login() {
           background: "radial-gradient(circle, rgb(221 193 74 / 0.16) 0%, rgb(221 193 74 / 0) 70%)",
         }}
       />
-      <div className="relative flex justify-end">
+      <div className="relative flex justify-end md:hidden">
         <LanguageSwitch />
       </div>
       <div className="relative mt-7 flex justify-center">
@@ -203,6 +204,7 @@ export function SignUp() {
 
   return (
     <Screen
+      width="auth"
       header={<MobileHeader title={t("Create Account")} back />}
       bodyClassName="gap-5 px-6 pt-6 pb-3"
       footer={
@@ -325,6 +327,7 @@ export function VerifyMethod() {
   ];
   return (
     <Screen
+      width="auth"
       header={<MobileHeader title={t("Verify Your Account")} back />}
       bodyClassName="gap-3 px-6 pt-6 pb-3"
       footer={
@@ -392,6 +395,7 @@ export function Otp({ mode }: { mode: "signup" | "reset" }) {
 
   return (
     <Screen
+      width="auth"
       header={
         <MobileHeader title={t(mode === "signup" ? "Verify Your Number" : "Verify Code")} back />
       }
@@ -457,6 +461,7 @@ export function AuthSuccess({ kind }: { kind: "verified" | "password" }) {
   const verified = kind === "verified";
   return (
     <Screen
+      width="auth"
       bodyClassName="items-stretch justify-center gap-[26px] p-6"
       footer={
         <Footer surface={false} className="pt-4">
@@ -491,6 +496,7 @@ export function ForgotPassword() {
   const [value, setValue] = useState("");
   return (
     <Screen
+      width="auth"
       header={<MobileHeader title={t("Forgot Password")} back />}
       bodyClassName="gap-5 px-6 pt-6 pb-3"
       footer={
@@ -553,6 +559,7 @@ export function NewPassword() {
   ];
   return (
     <Screen
+      width="auth"
       header={<MobileHeader title={t("New Password")} back />}
       bodyClassName="gap-5 px-6 pt-6 pb-3"
       footer={

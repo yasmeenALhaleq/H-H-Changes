@@ -200,7 +200,7 @@ export function Home() {
   if (fresh && active.length === 0) return <HomeNewAccount />;
 
   return (
-    <Screen nav bodyClassName="gap-4 px-6 pt-14 pb-4">
+    <Screen nav width="wide" bodyClassName="gap-4 px-6 pt-14 pb-4 md:gap-6 md:pt-0">
       <div className="flex items-center gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="text-[14px] text-ink-2">{t("Good morning,")}</span>
@@ -208,35 +208,39 @@ export function Home() {
             {t(account.business || "Clinic Name")}
           </span>
         </div>
-        <IconButton
-          icon={Bell}
-          label={t("Notifications")}
-          size={44}
-          onClick={() => navigate("/profile/notifications")}
-        />
+        <span className="md:hidden">
+          <IconButton
+            icon={Bell}
+            label={t("Notifications")}
+            size={44}
+            onClick={() => navigate("/profile/notifications")}
+          />
+        </span>
       </div>
 
-      <LoyaltyCard />
+      <div className="flex flex-col gap-4 md:grid md:grid-cols-2 md:gap-6">
+        <LoyaltyCard />
 
-      <section className="flex flex-col items-start gap-2 rounded-[16px] border border-gold bg-elevated p-5">
-        <h2 className="text-[20px] font-semibold text-ink">{t("New Order")}</h2>
-        <p className="text-[14px] text-ink-2">{t("Order Oxygen, Nitrogen or Dry Ice")}</p>
-        <Button size="sm" onClick={() => navigate("/products")}>
-          {t("Order Now")}
-          <ArrowRight size={24} className="text-ink rtl:-scale-x-100" />
-        </Button>
-      </section>
+        <section className="flex flex-col items-start gap-2 rounded-[16px] border border-gold bg-elevated p-5">
+          <h2 className="text-[20px] font-semibold text-ink">{t("New Order")}</h2>
+          <p className="text-[14px] text-ink-2">{t("Order Oxygen, Nitrogen or Dry Ice")}</p>
+          <Button size="sm" onClick={() => navigate("/products")}>
+            {t("Order Now")}
+            <ArrowRight size={24} className="text-ink rtl:-scale-x-100" />
+          </Button>
+        </section>
+      </div>
 
       <h2 className="text-[18px] font-semibold text-ink">{t("Products")}</h2>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-2 md:grid-cols-4 md:gap-4 lg:grid-cols-5">
         {shelf.map((product) => (
           <button
             key={product.id}
             type="button"
             onClick={() => navigate(`/products/${product.id}`)}
-            className="flex flex-col items-center gap-2 rounded-[12px] border border-line bg-surface p-3"
+            className="flex flex-col items-center gap-2 rounded-[12px] border border-line bg-surface p-3 transition-colors md:p-5 md:hover:border-gold"
           >
-            <ProductArt product={product} size={24} className="size-12 rounded-[12px]" />
+            <ProductArt product={product} size={24} className="size-12 rounded-[12px] md:size-16" />
             <span className="text-[14px] font-semibold text-ink">{names.name(product)}</span>
             <span className="text-[12px] text-ink-2">{t(tileUnit(product))}</span>
           </button>
@@ -245,7 +249,11 @@ export function Home() {
 
       <h2 className="text-[18px] font-semibold text-ink">{t("Active Orders")}</h2>
       {active.length > 0 ? (
-        active.map((order) => <OrderCard key={order.uid} order={order} />)
+        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2">
+          {active.map((order) => (
+            <OrderCard key={order.uid} order={order} />
+          ))}
+        </div>
       ) : (
         <EmptyState
           icon={Package}
@@ -273,15 +281,20 @@ function HomeNewAccount() {
   const names = useProductText();
   const shelf = catalog.filter((p) => p.active);
   return (
-    <Screen nav header={<MobileHeader brand bell />} bodyClassName="gap-5 px-6 pt-5 pb-4">
-      <div className="flex flex-col gap-5">
+    <Screen
+      nav
+      width="wide"
+      header={<MobileHeader brand bell />}
+      bodyClassName="gap-5 px-6 pt-5 pb-4 md:gap-6 md:pt-0"
+    >
+      <div className="flex flex-col gap-5 md:gap-1">
         <span className="text-[14px] text-ink-2">{t("Good morning,")}</span>
         <span className="text-[22px] leading-[1.5] font-bold text-ink">
           {t(account.business || "Clinic Name")}
         </span>
       </div>
 
-      <section className="flex flex-col gap-3 rounded-[14px] border border-line bg-elevated p-[18px]">
+      <section className="flex flex-col gap-3 rounded-[14px] border border-line bg-elevated p-[18px] md:max-w-[560px] md:p-6">
         <h2 className="text-[18px] leading-[1.5] font-semibold text-ink">{t("New Order")}</h2>
         <p className="text-[15px] leading-[1.5] text-ink-2">
           {t("Order Oxygen, Nitrogen or Dry Ice")}
@@ -292,13 +305,13 @@ function HomeNewAccount() {
       </section>
 
       <h2 className="text-[16px] leading-6 font-semibold text-ink">{t("Products")}</h2>
-      <div className="grid grid-cols-3 gap-2.5">
+      <div className="grid grid-cols-3 gap-2.5 md:grid-cols-4 md:gap-4 lg:grid-cols-5">
         {shelf.map((product) => (
           <button
             key={product.id}
             type="button"
             onClick={() => navigate(`/products/${product.id}`)}
-            className="flex flex-col items-start gap-2 rounded-[14px] border border-line bg-surface p-3 text-start"
+            className="flex flex-col items-start gap-2 rounded-[14px] border border-line bg-surface p-3 text-start transition-colors md:p-5 md:hover:border-gold"
           >
             <ProductArt product={product} size={24} className="size-10 rounded-[10px]" />
             <span className="text-[14px] font-semibold text-ink">{names.name(product)}</span>
@@ -341,27 +354,38 @@ export function Products() {
     return t("{a} / {u}", { a: money(product.price), u: t(product.unit) });
   };
   return (
-    <Screen nav header={<MobileHeader title={t("Products")} />} bodyClassName="gap-3 px-6 py-4">
-      {shelf.map((product) => (
-        <button
-          key={product.id}
-          type="button"
-          onClick={() => navigate(`/products/${product.id}`)}
-          className="flex items-center gap-3 rounded-[16px] border border-line bg-surface p-3 text-start"
-        >
-          <ProductArt product={product} size={32} className="size-[72px] shrink-0 rounded-[12px]" />
-          <span className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="text-[16px] font-semibold text-ink">{names.name(product)}</span>
-            <span className="text-[13px] text-ink-2">
-              {t("Unit: {u}", { u: names.unitLong(product) })}
+    <Screen
+      nav
+      width="wide"
+      header={<MobileHeader title={t("Products")} />}
+      bodyClassName="gap-3 px-6 py-4"
+    >
+      <div className="flex flex-col gap-3 md:grid md:grid-cols-2 md:gap-4 lg:grid-cols-3">
+        {shelf.map((product) => (
+          <button
+            key={product.id}
+            type="button"
+            onClick={() => navigate(`/products/${product.id}`)}
+            className="flex items-center gap-3 rounded-[16px] border border-line bg-surface p-3 text-start transition-colors md:p-4 md:hover:border-gold"
+          >
+            <ProductArt
+              product={product}
+              size={32}
+              className="size-[72px] shrink-0 rounded-[12px]"
+            />
+            <span className="flex min-w-0 flex-1 flex-col gap-1">
+              <span className="text-[16px] font-semibold text-ink">{names.name(product)}</span>
+              <span className="text-[13px] text-ink-2">
+                {t("Unit: {u}", { u: names.unitLong(product) })}
+              </span>
+              <span className="text-[13px] font-medium text-gold">
+                {t("Proposed: {p}", { p: priceLabel(product) })}
+              </span>
             </span>
-            <span className="text-[13px] font-medium text-gold">
-              {t("Proposed: {p}", { p: priceLabel(product) })}
-            </span>
-          </span>
-          <CaretRight size={16} className="shrink-0 text-ink-3 rtl:-scale-x-100" />
-        </button>
-      ))}
+            <CaretRight size={16} className="shrink-0 text-ink-3 rtl:-scale-x-100" />
+          </button>
+        ))}
+      </div>
     </Screen>
   );
 }
@@ -858,6 +882,7 @@ export function OrderSubmitting() {
   if (failed) {
     return (
       <Screen
+        width="auth"
         bodyClassName="items-stretch justify-center gap-4 p-6"
         footer={
           <Footer>
@@ -880,6 +905,7 @@ export function OrderSubmitting() {
 
   return (
     <Screen
+      width="auth"
       bodyClassName="items-stretch justify-center gap-4 p-6"
       footer={
         <Footer>
@@ -918,7 +944,7 @@ export function RewardCelebration() {
     "bottom-[261px] end-[77px] size-[13px]",
   ];
   return (
-    <Screen bodyClassName="relative items-center justify-center px-6">
+    <Screen width="auth" bodyClassName="relative items-center justify-center px-6 md:py-16">
       {sparkles.map((position) => (
         <span
           key={position}

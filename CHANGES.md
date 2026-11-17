@@ -5,7 +5,49 @@ Design source: Figma file `H-H`, page **High-Fidelity Design** (node `1:4`).
 
 After copying, run `pnpm install` once (new dependencies were added), then `pnpm dev` or `pnpm build`.
 
-## ★ 16 Nov, later — "H&H on your phone" install card (start here)
+## ★ 17 Nov — Customer screens fit phones, tablets and computers (start here)
+
+**Upload these files, each at its path, then Publish:**
+
+| Path | |
+| --- | --- |
+| `src/components/mobile.tsx` | replace — the responsive app shell |
+| `src/customer/shop.tsx` | replace |
+| `src/customer/orders.tsx` | replace |
+| `src/customer/auth.tsx` | replace |
+| `src/customer/profile.tsx` | replace — still pending from 16 Nov (iPhone install steps) |
+| `public/manifest.json` | replace — still pending from 16 Nov (plain dash in the name) |
+
+The same 6 files are in `bundle/responsive-17-nov.zip`, already in their folders.
+
+**On a phone** (under 768px wide) nothing changes: the screens fill the
+phone, with the bottom tab bar, exactly as before.
+
+**On a tablet or computer** (768px and up) the customer app becomes a website layout:
+
+- **Top bar** across the page: H&H brand, the four tabs (Home, Products, My
+  Orders, Profile — only when signed in), language switch and notifications.
+  It replaces the bottom tab bar.
+- **Home:** loyalty and New Order cards side by side, products in a row of
+  tiles (4–5 across), active orders in two columns on wide screens.
+- **Products:** product cards in a grid, 2–3 across.
+- **My Orders:** orders in two columns on wide screens.
+- **Forms and details** (product, new order, review, address, profile
+  settings, order details): one centred column, 680px wide, with the
+  screen title as the page heading and the action buttons right under the form.
+- **Welcome, login, sign-up, verification and success screens:** a centred
+  card, 480px wide.
+- The "H&H on your phone" install card floats in the bottom corner.
+
+The page scrolls like a normal website; the admin dashboard is not affected.
+
+Checked by rendering the screens at 390px (phone), 768px, 820px (tablet),
+1024px and 1366px (laptop), in English and Arabic: nothing runs off the side,
+and the phone layout is unchanged.
+
+---
+
+## ★ 16 Nov, later — "H&H on your phone" install card
 
 **Upload these 3 files, then Publish:**
 

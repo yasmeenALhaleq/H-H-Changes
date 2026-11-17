@@ -12,39 +12,132 @@ import {
 } from "@phosphor-icons/react";
 import { useI18n } from "@/i18n";
 import { useInstall } from "@/lib/pwa";
-import { Button, cx } from "./ui";
+import { useStore } from "@/store";
+import { Button, cx, LanguageSwitch } from "./ui";
+
+/** How wide a screen's content may grow on a tablet or computer. */
+export type ScreenWidth = "form" | "wide" | "auth";
+
+const DESKTOP_WIDTH: Record<ScreenWidth, string> = {
+  // Forms, details and settings read best in one comfortable column.
+  form: "md:max-w-[680px]",
+  // Home, products and orders spread into grids.
+  wide: "md:max-w-[1120px]",
+  // Sign-in, sign-up and confirmation screens sit in a centred card.
+  auth: "md:my-12 md:max-w-[480px] md:overflow-hidden md:rounded-[24px] md:border md:border-line md:py-4",
+};
 
 /**
- * Phone-sized app shell. On wide viewports the customer app is shown as a centred
- * 390 × 844 device column, matching the Figma frames; on phones it fills the screen.
+ * App shell for every customer screen.
+ *
+ * - **Phone** (under 768px wide): the screen fills the phone — header on top,
+ *   the content scrolls, the action area and the tab bar stay at the bottom.
+ * - **Tablet and computer** (768px and up): a top bar with the H&H brand, the
+ *   tabs, notifications and language replaces the bottom tab bar; the page
+ *   scrolls like a website and the content is centred at a readable width
+ *   (`width`). The screen's own title becomes the page heading.
  */
 export function Screen({
   header,
   footer,
   nav,
   bodyClassName,
+  width = "form",
   children,
 }: {
   header?: ReactNode;
   footer?: ReactNode;
   nav?: boolean;
   bodyClassName?: string;
+  width?: ScreenWidth;
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-dvh justify-center bg-black">
-      <div className="relative flex h-dvh w-full max-w-[430px] flex-col overflow-hidden bg-bg sm:my-auto sm:h-[844px] sm:max-h-dvh sm:max-w-[390px] sm:rounded-[28px] sm:border sm:border-line">
-        {header}
-        <main
-          className={cx("no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto", bodyClassName)}
+    <div className="flex min-h-dvh justify-center bg-black md:flex-col md:justify-start md:bg-bg">
+      <DesktopBar />
+      <div className="relative flex h-dvh w-full max-w-[480px] flex-col overflow-hidden bg-bg md:h-auto md:max-w-none md:flex-1 md:overflow-visible md:px-8">
+        <div
+          className={cx(
+            "contents md:mx-auto md:flex md:w-full md:flex-col md:pt-8 md:pb-16",
+            DESKTOP_WIDTH[width],
+          )}
         >
-          {children}
-        </main>
+          {header}
+          <main
+            className={cx(
+              "no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-none md:overflow-visible",
+              bodyClassName,
+            )}
+          >
+            {children}
+          </main>
+          {footer}
+        </div>
         <InstallBanner />
-        {footer}
         {nav && <BottomNav />}
       </div>
     </div>
+  );
+}
+
+/** Top bar on tablets and computers: brand, tabs (when signed in), notifications, language. */
+function DesktopBar() {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { t } = useI18n();
+  const { session } = useStore();
+  const signedIn = session.status === "user";
+  return (
+    <header className="sticky top-0 z-20 hidden h-[72px] shrink-0 border-b border-line bg-surface/95 backdrop-blur md:block">
+      <div className="mx-auto flex h-full max-w-[1120px] items-center gap-4 px-6 lg:gap-8 lg:px-8">
+        <button
+          type="button"
+          onClick={() => navigate(signedIn ? "/home" : "/")}
+          className="flex shrink-0 items-center gap-3"
+        >
+          <span className="flex size-10 items-center justify-center rounded-[10px] bg-gold-gradient text-[13px] font-bold text-bg">
+            H&amp;H
+          </span>
+          <span className="hidden text-[17px] font-semibold whitespace-nowrap text-ink lg:inline">
+            {t("H&H Company")}
+          </span>
+        </button>
+        {signedIn && (
+          <nav className="flex min-w-0 flex-1 items-center gap-1">
+            {tabs.map((tab) => {
+              const active = tab.match.some((m) => pathname === m || pathname.startsWith(`${m}/`));
+              return (
+                <button
+                  key={tab.to}
+                  type="button"
+                  aria-current={active ? "page" : undefined}
+                  onClick={() => navigate(tab.to)}
+                  className={cx(
+                    "flex h-10 items-center gap-2 rounded-full px-3 text-[14px] whitespace-nowrap transition-colors lg:px-4",
+                    active
+                      ? "bg-gold font-semibold text-bg"
+                      : "font-medium text-ink-2 hover:bg-elevated hover:text-ink",
+                  )}
+                >
+                  <tab.icon size={20} />
+                  {t(tab.label)}
+                </button>
+              );
+            })}
+          </nav>
+        )}
+        <div className="ms-auto flex items-center gap-3">
+          <LanguageSwitch />
+          {signedIn && (
+            <IconButton
+              icon={Bell}
+              label={t("Notifications")}
+              onClick={() => navigate("/profile/notifications")}
+            />
+          )}
+        </div>
+      </div>
+    </header>
   );
 }
 
@@ -91,7 +184,15 @@ export function MobileHeader({
   const navigate = useNavigate();
   const { t } = useI18n();
   return (
-    <header className="flex h-16 shrink-0 items-center gap-3 border-b border-line bg-bg px-4">
+    <header
+      className={cx(
+        "flex h-16 shrink-0 items-center gap-3 border-b border-line bg-bg px-4",
+        // On a computer the top bar carries the brand and the bell; a title becomes the page heading.
+        brand
+          ? "md:hidden"
+          : "md:mb-2 md:h-auto md:border-0 md:bg-transparent md:px-6 md:pt-0 md:pb-2",
+      )}
+    >
       {back && (
         <IconButton
           icon={ArrowLeft}
@@ -108,17 +209,19 @@ export function MobileHeader({
       <h1
         className={cx(
           "min-w-0 flex-1 truncate font-semibold text-ink",
-          brand ? "text-[16px]" : "text-[17px]",
+          brand ? "text-[16px]" : "text-[17px] md:text-[28px] md:font-bold",
         )}
       >
         {brand ? t("H&H Company") : title}
       </h1>
       {bell && (
-        <IconButton
-          icon={Bell}
-          label={t("Notifications")}
-          onClick={() => navigate("/profile/notifications")}
-        />
+        <span className="md:hidden">
+          <IconButton
+            icon={Bell}
+            label={t("Notifications")}
+            onClick={() => navigate("/profile/notifications")}
+          />
+        </span>
       )}
     </header>
   );
@@ -137,8 +240,8 @@ export function Footer({
   return (
     <footer
       className={cx(
-        "flex shrink-0 flex-col gap-3 px-6 pt-3.5 pb-8",
-        surface && "bg-surface",
+        "flex shrink-0 flex-col gap-3 px-6 pt-3.5 pb-8 md:pt-4 md:pb-0",
+        surface && "bg-surface md:bg-transparent",
         className,
       )}
     >
@@ -159,7 +262,7 @@ export function BottomNav() {
   const navigate = useNavigate();
   const { t } = useI18n();
   return (
-    <nav className="flex h-[84px] shrink-0 items-center justify-between border-t border-line bg-surface px-3 pt-2 pb-3">
+    <nav className="flex h-[84px] shrink-0 items-center justify-between border-t border-line bg-surface px-3 pt-2 pb-3 md:hidden">
       {tabs.map((tab) => {
         const active = tab.match.some((m) => pathname === m || pathname.startsWith(`${m}/`));
         return (
@@ -247,7 +350,7 @@ export function InstallBanner() {
   return (
     <aside
       aria-label={t("H&H on your phone")}
-      className="mx-4 mb-3 flex shrink-0 flex-col gap-3.5 rounded-[18px] border border-line bg-surface p-4 shadow-[0_8px_30px_rgba(0,0,0,0.45)]"
+      className="mx-4 mb-3 flex shrink-0 flex-col gap-3.5 rounded-[18px] border border-line bg-surface p-4 shadow-[0_8px_30px_rgba(0,0,0,0.45)] md:fixed md:end-6 md:bottom-6 md:z-30 md:m-0 md:w-[360px]"
     >
       <div className="flex items-start gap-3">
         <img

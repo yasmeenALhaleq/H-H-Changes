@@ -54,6 +54,7 @@ export function MyOrders() {
   return (
     <Screen
       nav
+      width="wide"
       header={<MobileHeader title={t("My Orders")} />}
       bodyClassName="gap-4 px-6 pt-2 pb-4"
     >
@@ -69,7 +70,11 @@ export function MyOrders() {
         ]}
       />
       {list.length > 0 ? (
-        list.map((order) => <OrderCard key={order.uid} order={order} />)
+        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2">
+          {list.map((order) => (
+            <OrderCard key={order.uid} order={order} />
+          ))}
+        </div>
       ) : (
         <EmptyState
           icon={Package}
