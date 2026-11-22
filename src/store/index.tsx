@@ -322,6 +322,39 @@ export function priceOrder(
 
 export type OrderStatus = "pending" | "confirmed" | "on_the_way" | "delivered" | "cancelled";
 
+/** Where a driver is today; the operations team sets it from the dashboard. */
+export type DriverStatus = "available" | "on_route" | "on_leave";
+
+export const DRIVER_STATUS_LABEL: Record<DriverStatus, string> = {
+  available: "Available",
+  on_route: "On route",
+  on_leave: "On leave",
+};
+
+export type Driver = {
+  id: string;
+  name: string;
+  /** Vehicle or plate, free text. */
+  vehicle: string;
+  status: DriverStatus;
+};
+
+type DriverRow = {
+  id: string;
+  name: string;
+  vehicle: string;
+  status: DriverStatus;
+  active: boolean;
+  sort: number;
+};
+
+const toDriver = (row: DriverRow): Driver => ({
+  id: row.id,
+  name: row.name,
+  vehicle: row.vehicle ?? "",
+  status: row.status,
+});
+
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   pending: "Pending",
   confirmed: "Confirmed",
@@ -461,6 +494,14 @@ type Store = {
   isAdmin: boolean;
   /** Every customer account; only loaded for an admin. */
   customers: Customer[];
+  /** The company's drivers and where each one is today; only loaded for an admin. */
+  drivers: Driver[];
+  /** Admin only — adds a driver (no id) or saves one. */
+  saveDriver: (driver: Omit<Driver, "id"> & { id?: string }) => Promise<Failure>;
+  /** Admin only — sets where a driver is today. */
+  setDriverStatus: (id: string, status: DriverStatus) => Promise<Failure>;
+  /** Admin only — takes a driver off the list (past orders keep the name). */
+  removeDriver: (id: string) => Promise<Failure>;
   /** Reloads profile, addresses and orders from the database. */
   refresh: () => Promise<void>;
   /** Admin actions on any customer's order. */
@@ -630,6 +671,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loyalty, setLoyalty] = useState(0);
   const [draft, setDraftState] = useState<Draft>(
     emptyDraft("dry-ice", "", PRODUCTS["dry-ice"].min),
@@ -663,6 +705,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (productList.data) setProductRows(productList.data as ProductRow[]);
     const admins = admin.data === true;
     setIsAdmin(admins);
+    setDrivers(
+      admins
+        ? (
+            ((
+              await neon
+                .from("drivers")
+                .select("*")
+                .eq("active", true)
+                .order("sort", { ascending: true })
+            ).data ?? []) as DriverRow[]
+          ).map(toDriver)
+        : [],
+    );
     // An admin may read every profile; a customer only sees their own row.
     setCustomers(
       admins
@@ -721,6 +776,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setAllOrders([]);
     setIsAdmin(false);
     setCustomers([]);
+    setDrivers([]);
     setLoyalty(0);
     setDraftState(emptyDraft("dry-ice"));
     setSession({ status: "guest" });
@@ -976,6 +1032,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       isAdmin,
       customers,
+      drivers,
       refresh: async () => {
         if (userId) await loadCustomer(userId, activeEmail).catch(() => {});
       },
@@ -1080,6 +1137,50 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
 
       settings,
+      saveDriver: async (driver) => {
+        try {
+          const { data, error } = await neon.rpc("admin_save_driver", {
+            p_id: driver.id ?? null,
+            p_name: driver.name.trim(),
+            p_vehicle: driver.vehicle.trim(),
+            p_status: driver.status,
+          });
+          if (error || !data) return errorMessage(error);
+          const saved = toDriver(data as DriverRow);
+          setDrivers((prev) =>
+            prev.some((d) => d.id === saved.id)
+              ? prev.map((d) => (d.id === saved.id ? saved : d))
+              : [...prev, saved],
+          );
+          return null;
+        } catch (error) {
+          return errorMessage(error);
+        }
+      },
+      setDriverStatus: async (id, status) => {
+        try {
+          const { data, error } = await neon.rpc("admin_set_driver_status", {
+            p_id: id,
+            p_status: status,
+          });
+          if (error || !data) return errorMessage(error);
+          const saved = toDriver(data as DriverRow);
+          setDrivers((prev) => prev.map((d) => (d.id === saved.id ? saved : d)));
+          return null;
+        } catch (error) {
+          return errorMessage(error);
+        }
+      },
+      removeDriver: async (id) => {
+        try {
+          const { error } = await neon.rpc("admin_remove_driver", { p_id: id });
+          if (error) return errorMessage(error);
+          setDrivers((prev) => prev.filter((d) => d.id !== id));
+          return null;
+        } catch (error) {
+          return errorMessage(error);
+        }
+      },
       saveSettings: async (next) => {
         try {
           const { data, error } = await neon.rpc("admin_save_settings", {
@@ -1112,6 +1213,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     allOrders,
     isAdmin,
     customers,
+    drivers,
     activeUser,
     activeEmail,
     loyalty,

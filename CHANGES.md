@@ -5,7 +5,43 @@ Design source: Figma file `H-H`, page **High-Fidelity Design** (node `1:4`).
 
 After copying, run `pnpm install` once (new dependencies were added), then `pnpm dev` or `pnpm build`.
 
-## ★ 22 Nov, later — Oxygen sold by the jar, jar prices set by the admin (start here)
+## ★ 22 Nov, evening — Drivers: set each one's status from the admin (start here)
+
+**Upload these 6 files, then Publish.** This set includes the oxygen update
+just below, so if that one is not uploaded yet, these 6 cover both:
+
+- `src/store/index.tsx`
+- `src/store/format.ts`
+- `src/customer/shop.tsx`
+- `src/admin/screens.tsx`
+- `src/admin/data.tsx`
+- `src/i18n/ar.ts`
+
+**What changed:** drivers were fixed demo names in the code. They now live in
+the database, and the team sets where each driver is today:
+
+- **Available** (blue) · **On route** (gold) · **On leave** (grey) — three
+  buttons beside each driver; one tap saves it.
+- **Dashboard → Driver availability:** the same buttons, so the status can be
+  changed without leaving the dashboard.
+- **Deliveries → Drivers:** add a driver (name, vehicle / plate), edit, or
+  remove one (with a confirm step). "Current orders" lists the orders the
+  driver is carrying now (assigned and not yet delivered or cancelled).
+- **Order details → Driver:** drivers on leave are no longer offered; each
+  name shows its status ("Driver Samer · Available"). A driver already on the
+  order stays listed even if they go on leave later.
+- The status is set by hand: assigning an order does not switch a driver to
+  "On route" on its own.
+
+**Database (already applied, nothing to upload):** new `drivers` table that
+only an admin can read, with `admin_save_driver`, `admin_set_driver_status`
+and `admin_remove_driver`. Seeded with the four drivers from the design
+(Ahmad on route, Samer and Lina available, Omar on leave). Removing a driver
+hides them; past orders keep the name.
+
+---
+
+## ★ 22 Nov, later — Oxygen sold by the jar, jar prices set by the admin
 
 **Upload these 5 files, then Publish:**
 

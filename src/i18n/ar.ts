@@ -652,4 +652,23 @@ export const ar: Record<string, string> = {
   "Customers pick a jar size and a number of jars; each size has its own price.":
     "العميل يختار حجم الأسطوانة وعددها، ولكل حجم سعره الخاص.",
   "Number of jars · Min {min} · Max {max}": "عدد الأسطوانات · الحد الأدنى {min} · الحد الأقصى {max}",
+
+  // Drivers
+  "On leave": "إجازة",
+  "Status of {name}": "حالة {name}",
+  "Not saved": "لم يُحفظ",
+  "No drivers yet. Add them under Deliveries.": "لا يوجد سائقون بعد. أضفهم من صفحة التوصيل.",
+  "Set each driver's status for today: available, on route or on leave.":
+    "حدّد حالة كل سائق اليوم: متاح، في الطريق، أو في إجازة.",
+  "Add driver": "إضافة سائق",
+  "Driver name": "اسم السائق",
+  "Vehicle / plate (optional)": "المركبة / رقم اللوحة (اختياري)",
+  Save: "حفظ",
+  "No drivers yet. Add the first one.": "لا يوجد سائقون بعد. أضف أول سائق.",
+  "Current orders": "الطلبات الحالية",
+  "Remove?": "إزالة؟",
+  "Edit {name}": "تعديل {name}",
+  "Remove {name}": "إزالة {name}",
+  "Enter the driver name.": "أدخل اسم السائق.",
+  "Only an admin may change drivers": "تعديل السائقين متاح للمسؤول فقط",
 };

@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
-import { Image as ImageIcon, Plus, Trash } from "@phosphor-icons/react";
+import { Image as ImageIcon, PencilSimple, Plus, Trash } from "@phosphor-icons/react";
 import { useI18n } from "@/i18n";
 import {
   canCancel,
+  DRIVER_STATUS_LABEL,
   isActive,
   priceOrder,
   PRICED_BY_JAR,
@@ -11,6 +12,8 @@ import {
   UNIT_LONG,
   useStore,
   type CatalogProduct,
+  type Driver,
+  type DriverStatus,
   type Order,
   type OrderStatus,
   type ProductInput,
@@ -34,7 +37,61 @@ import {
   Toggle,
 } from "@/components/ui";
 import { AdminPage, AdminUser, Panel, Stat, Table } from "./layout";
-import { availabilityTone, DRIVERS, useAdmin } from "./data";
+import { useAdmin } from "./data";
+
+const DRIVER_STATUSES: DriverStatus[] = ["available", "on_route", "on_leave"];
+
+/**
+ * Where a driver is today, as three small buttons — Available, On route, On leave.
+ * One tap saves it; the chosen one is filled in its colour.
+ */
+function DriverStatusPicker({ driver }: { driver: Driver }) {
+  const { t } = useI18n();
+  const { setDriverStatus } = useStore();
+  const [saving, setSaving] = useState<DriverStatus | null>(null);
+  const [failed, setFailed] = useState(false);
+  const fill: Record<DriverStatus, string> = {
+    available: "border-info bg-info text-bg",
+    on_route: "border-gold bg-gold text-bg",
+    on_leave: "border-ink-2 bg-ink-2 text-bg",
+  };
+  const pick = async (status: DriverStatus) => {
+    if (status === driver.status || saving) return;
+    setSaving(status);
+    const failure = await setDriverStatus(driver.id, status);
+    setSaving(null);
+    setFailed(failure !== null);
+  };
+  return (
+    <div
+      role="radiogroup"
+      aria-label={t("Status of {name}", { name: driver.name })}
+      className="flex items-center gap-1.5"
+    >
+      {DRIVER_STATUSES.map((status) => {
+        const on = driver.status === status;
+        return (
+          <button
+            key={status}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            disabled={saving !== null}
+            onClick={() => void pick(status)}
+            className={cx(
+              "h-7 rounded-full border px-3 text-[12px] font-semibold whitespace-nowrap transition-colors",
+              on ? fill[status] : "border-line text-ink-2 hover:border-ink-3 hover:text-ink",
+              saving === status && "opacity-60",
+            )}
+          >
+            {t(DRIVER_STATUS_LABEL[status])}
+          </button>
+        );
+      })}
+      {failed && <span className="text-[12px] text-err">{t("Not saved")}</span>}
+    </div>
+  );
+}
 
 function StatusBadge({ status }: { status: OrderStatus }) {
   const { t } = useI18n();
@@ -175,6 +232,7 @@ export function Dashboard() {
   const navigate = useNavigate();
   const { t, money, lang } = useI18n();
   const orders = useAdminOrders();
+  const { drivers } = useStore();
   const columns = useOrderColumns();
   const active = orders.filter(isActive);
   const todayKey = new Date().toDateString();
@@ -238,13 +296,18 @@ export function Dashboard() {
           <h2 className="text-[16px] leading-6 font-semibold text-ink">
             {t("Driver availability")}
           </h2>
-          {DRIVERS.map((driver) => (
+          {drivers.length === 0 && (
+            <p className="text-[13px] text-ink-2">
+              {t("No drivers yet. Add them under Deliveries.")}
+            </p>
+          )}
+          {drivers.map((driver) => (
             <div
-              key={driver.name}
-              className="flex items-center justify-between text-[14px] text-ink"
+              key={driver.id}
+              className="flex flex-wrap items-center justify-between gap-2 text-[14px] text-ink"
             >
               {t(driver.name)}
-              <Badge tone={availabilityTone[driver.availability]}>{t(driver.availability)}</Badge>
+              <DriverStatusPicker driver={driver} />
             </div>
           ))}
         </Panel>
@@ -795,7 +858,7 @@ export function AdminOrders() {
 export function AdminOrderDetails() {
   const { uid } = useParams();
   const { t, money } = useI18n();
-  const { setOrderStatus, assignDriver, settings, catalog } = useStore();
+  const { setOrderStatus, assignDriver, settings, catalog, drivers } = useStore();
   const names = useProductText();
   const { seenRewards, markRewardSeen } = useAdmin();
   const text = useOrderText();
@@ -852,10 +915,18 @@ export function AdminOrderDetails() {
               value={order.driver ?? ""}
               onChange={(driver) => void run(assignDriver(order.uid, driver))}
               placeholder={t("Assign on dispatch")}
-              options={DRIVERS.filter((d) => d.availability !== "Off duty").map((d) => ({
-                value: d.name,
-                label: t(d.name),
-              }))}
+              options={[
+                // A driver already on the order stays listed, even if they are on leave since.
+                ...(order.driver && !drivers.some((d) => d.name === order.driver)
+                  ? [{ value: order.driver, label: t(order.driver) }]
+                  : []),
+                ...drivers
+                  .filter((d) => d.status !== "on_leave" || d.name === order.driver)
+                  .map((d) => ({
+                    value: d.name,
+                    label: `${t(d.name)} · ${t(DRIVER_STATUS_LABEL[d.status])}`,
+                  })),
+              ]}
             />
             <p className="text-[14px] text-ink-2">
               {t("3. Cancel only while Pending or Confirmed.")}
@@ -1184,22 +1255,7 @@ export function AdminDeliveries() {
           </Panel>
         ))}
       </div>
-      <h2 className="text-[18px] leading-[1.5] font-semibold text-ink">{t("Drivers")}</h2>
-      <Table
-        endLast
-        columns={[t("Driver"), t("Vehicle"), t("Current route"), t("Availability")]}
-        rows={DRIVERS.map((driver) => ({
-          key: driver.name,
-          cells: [
-            t(driver.name),
-            t(driver.vehicle),
-            t(driver.route),
-            <Badge key="s" tone={availabilityTone[driver.availability]}>
-              {t(driver.availability)}
-            </Badge>,
-          ],
-        }))}
-      />
+      <DriversPanel orders={orders} />
     </AdminPage>
   );
 }
@@ -1521,5 +1577,151 @@ export function AdminSettings() {
         </Button>
       </div>
     </AdminPage>
+  );
+}
+
+/* Admin — Drivers (on the Deliveries screen): who is on today, on the road or on leave */
+function DriversPanel({ orders }: { orders: Order[] }) {
+  const { t } = useI18n();
+  const { drivers, saveDriver, removeDriver } = useStore();
+  const [editing, setEditing] = useState<Driver | "new" | null>(null);
+  const [form, setForm] = useState({ name: "", vehicle: "" });
+  const [failure, setFailure] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+
+  const open = (driver: Driver | "new") => {
+    setEditing(driver);
+    setForm(
+      driver === "new" ? { name: "", vehicle: "" } : { name: driver.name, vehicle: driver.vehicle },
+    );
+    setFailure(null);
+  };
+  const save = async () => {
+    if (!editing) return;
+    setBusy(true);
+    const result = await saveDriver({
+      ...(editing === "new"
+        ? { status: "available" as DriverStatus }
+        : { id: editing.id, status: editing.status }),
+      name: form.name,
+      vehicle: form.vehicle,
+    });
+    setBusy(false);
+    if (result) setFailure(result);
+    else setEditing(null);
+  };
+  const remove = async (id: string) => {
+    setBusy(true);
+    const result = await removeDriver(id);
+    setBusy(false);
+    setConfirmRemove(null);
+    if (result) setFailure(result);
+  };
+  // Orders a driver is carrying now: assigned and not yet delivered or cancelled.
+  const route = (driver: Driver) => {
+    const mine = orders.filter((o) => o.driver === driver.name && isActive(o));
+    return mine.length === 0 ? "—" : mine.map((o) => `#${o.id}`).join(" · ");
+  };
+
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-0.5">
+          <h2 className="text-[18px] leading-[1.5] font-semibold text-ink">{t("Drivers")}</h2>
+          <p className="text-[13px] text-ink-2">
+            {t("Set each driver's status for today: available, on route or on leave.")}
+          </p>
+        </div>
+        <Button size="sm" onClick={() => open("new")}>
+          <Plus size={18} />
+          {t("Add driver")}
+        </Button>
+      </div>
+
+      {editing && (
+        <Panel className="flex flex-wrap items-end gap-4 p-5">
+          <div className="min-w-[220px] flex-1">
+            <Input
+              label={t("Driver name")}
+              value={form.name}
+              maxLength={60}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            />
+          </div>
+          <div className="min-w-[220px] flex-1">
+            <Input
+              label={t("Vehicle / plate (optional)")}
+              value={form.vehicle}
+              maxLength={40}
+              onChange={(e) => setForm((f) => ({ ...f, vehicle: e.target.value }))}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button size="md" variant="outline" onClick={() => setEditing(null)}>
+              {t("Cancel")}
+            </Button>
+            <Button
+              size="md"
+              disabled={busy || form.name.trim() === ""}
+              onClick={() => void save()}
+            >
+              {busy ? t("Saving…") : t(editing === "new" ? "Add driver" : "Save")}
+            </Button>
+          </div>
+        </Panel>
+      )}
+      {failure && <p className="text-[13px] text-err">{t(failure)}</p>}
+
+      {drivers.length === 0 ? (
+        <Panel className="p-5 text-[14px] text-ink-2">
+          {t("No drivers yet. Add the first one.")}
+        </Panel>
+      ) : (
+        <Table
+          endLast
+          columns={[t("Driver"), t("Vehicle"), t("Current orders"), t("Today"), ""]}
+          rows={drivers.map((driver) => ({
+            key: driver.id,
+            cells: [
+              t(driver.name),
+              driver.vehicle ? t(driver.vehicle) : "—",
+              route(driver),
+              <DriverStatusPicker key="s" driver={driver} />,
+              confirmRemove === driver.id ? (
+                <span key="a" className="flex items-center justify-end gap-2">
+                  <span className="text-[12px] text-ink-2">{t("Remove?")}</span>
+                  <Button size="sm" variant="outline" onClick={() => setConfirmRemove(null)}>
+                    {t("Cancel")}
+                  </Button>
+                  <Button size="sm" disabled={busy} onClick={() => void remove(driver.id)}>
+                    {t("Remove")}
+                  </Button>
+                </span>
+              ) : (
+                <span key="a" className="flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    aria-label={t("Edit {name}", { name: driver.name })}
+                    onClick={() => open(driver)}
+                    className="flex size-8 items-center justify-center rounded-[8px] text-ink-2 hover:bg-elevated hover:text-ink"
+                  >
+                    <PencilSimple size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={t("Remove {name}", { name: driver.name })}
+                    onClick={() => setConfirmRemove(driver.id)}
+                    className="flex size-8 items-center justify-center rounded-[8px] text-ink-2 hover:bg-elevated hover:text-err"
+                  >
+                    <Trash size={18} />
+                  </button>
+                </span>
+              ),
+            ],
+          }))}
+        />
+      )}
+    </section>
   );
 }

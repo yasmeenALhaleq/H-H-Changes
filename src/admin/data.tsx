@@ -1,29 +1,12 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import type { BadgeTone } from "@/components/ui";
+import type { DriverStatus } from "@/store";
 
-export type Driver = {
-  name: string;
-  vehicle: string;
-  route: string;
-  availability: "On route" | "Available" | "Off duty";
-};
-
-export const DRIVERS: Driver[] = [
-  {
-    name: "Driver Ahmad",
-    vehicle: "Plate XX-XXXX",
-    route: "#1024 · 2 stops",
-    availability: "On route",
-  },
-  { name: "Driver Samer", vehicle: "Plate XX-XXXX", route: "None", availability: "Available" },
-  { name: "Driver Lina", vehicle: "Plate XX-XXXX", route: "None", availability: "Available" },
-  { name: "Driver Omar", vehicle: "Plate XX-XXXX", route: "None", availability: "Off duty" },
-];
-
-export const availabilityTone: Record<Driver["availability"], BadgeTone> = {
-  "On route": "gold",
-  Available: "info",
-  "Off duty": "muted",
+/** Badge colour for a driver's status: on the road = gold, free = blue, away = grey. */
+export const driverTone: Record<DriverStatus, BadgeTone> = {
+  on_route: "gold",
+  available: "info",
+  on_leave: "muted",
 };
 
 /**
