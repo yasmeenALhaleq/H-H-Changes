@@ -60,6 +60,17 @@
     outline: 1.5px solid var(--color-gold);
     outline-offset: 2px;
   }
+  /*
+   * Text fields show focus on their own box (the gold border of the field),
+   * so they skip the ring above. Without this the ring is drawn around the bare
+   * input inside the box and shows as two thin gold lines at its sides.
+   * Checkboxes and radios keep the ring.
+   */
+  input:not([type="checkbox"], [type="radio"]):focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: none;
+  }
 }
 
 @utility bg-gold-gradient {

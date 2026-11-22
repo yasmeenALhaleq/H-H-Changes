@@ -1423,7 +1423,7 @@ export function AdminSettings() {
               inputMode="numeric"
               value={form.rewardEvery}
               onChange={(e) => set({ rewardEvery: digits(e.target.value) })}
-              className="h-[38px] w-[120px] rounded-[6px] border border-line bg-bg px-3 text-[26px] font-semibold text-gold-deep"
+              className="h-[38px] w-[120px] rounded-[6px] border border-line bg-bg px-3 text-[26px] font-semibold text-gold-deep focus:border-gold"
             />
             {invalidReward && (
               <span className="text-[12px] text-err">{t("Enter a number between 2 and 50.")}</span>

@@ -5,7 +5,30 @@ Design source: Figma file `H-H`, page **High-Fidelity Design** (node `1:4`).
 
 After copying, run `pnpm install` once (new dependencies were added), then `pnpm dev` or `pnpm build`.
 
-## ★ 17 Nov — Customer screens fit phones, tablets and computers (start here)
+## ★ 22 Nov — Thin gold lines inside text boxes (start here)
+
+**Upload these 2 files, then Publish:**
+
+- `src/index.css`
+- `src/admin/screens.tsx`
+
+**What was wrong:** every text box is two layers — a box with the border, and
+the bare typing field inside it. When a box was focused, its border turned
+gold (as designed), but a global rule in `index.css` also drew a gold focus
+ring around the bare field inside it. The box hid the top and bottom of that
+ring, so only its two sides showed: the two thin vertical lines.
+
+**Fix:** text fields, text areas and dropdowns no longer get that inner ring;
+the box's own gold border shows the focus. Buttons, links, checkboxes and
+radios keep their focus ring for keyboard users. One admin number field
+(loyalty settings) had no gold border of its own, so it gets one on focus.
+
+Checked on the login screen with the field focused from the keyboard: the
+lines show before the fix and are gone after it.
+
+---
+
+## ★ 17 Nov — Customer screens fit phones, tablets and computers
 
 **Upload these files, each at its path, then Publish:**
 
