@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
@@ -19,6 +19,7 @@ import { useI18n } from "@/i18n";
 import {
   isActive,
   priceOrder,
+  setReturnTo,
   type BuiltInId,
   type CatalogProduct,
   findProduct,
@@ -28,7 +29,15 @@ import {
   useStore,
 } from "@/store";
 import { useOrderText, useProductText } from "@/store/format";
-import { Footer, IconButton, MobileHeader, Screen } from "@/components/mobile";
+import {
+  Footer,
+  IconButton,
+  MobileHeader,
+  Screen,
+  SignInPrompt,
+  SignInSheet,
+  useSignIn,
+} from "@/components/mobile";
 import {
   Badge,
   Button,
@@ -205,11 +214,12 @@ function ProductArt({
 export function Home() {
   const navigate = useNavigate();
   const { t } = useI18n();
-  const { account, orders, fresh, catalog } = useStore();
+  const { account, orders, fresh, catalog, session } = useStore();
   const names = useProductText();
   const active = orders.filter((o) => o.mine && isActive(o));
   const shelf = catalog.filter((p) => p.active);
 
+  if (session.status !== "user") return <HomeGuest />;
   if (fresh && active.length === 0) return <HomeNewAccount />;
 
   return (
@@ -279,6 +289,70 @@ export function Home() {
           }
         />
       )}
+    </Screen>
+  );
+}
+
+/* Home — Guest: the app opens here without signing in; sign-in comes with the first order. */
+function HomeGuest() {
+  const navigate = useNavigate();
+  const { t } = useI18n();
+  const { catalog } = useStore();
+  const names = useProductText();
+  const signIn = useSignIn();
+  const shelf = catalog.filter((p) => p.active);
+  return (
+    <Screen
+      nav
+      width="wide"
+      header={<MobileHeader brand />}
+      bodyClassName="gap-5 px-6 pt-5 pb-4 md:gap-6 md:pt-0"
+    >
+      <div className="flex flex-col gap-3">
+        <h1 className="text-[22px] leading-[1.4] font-bold text-ink md:text-[28px]">
+          {t("Medical gases & dry ice")}
+        </h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="min-w-0 flex-1 basis-56 text-[13px] leading-[1.6] text-ink-2">
+            {t("Browse freely. You sign in once, when you place your first order.")}
+          </p>
+          {/* On a computer the top bar already carries Login. */}
+          <span className="md:hidden">
+            <Button size="sm" variant="outline" onClick={() => signIn("login")}>
+              {t("Login")}
+            </Button>
+          </span>
+        </div>
+      </div>
+
+      <section className="flex flex-col gap-3 rounded-[14px] border border-line bg-elevated p-[18px] md:max-w-[560px] md:p-6">
+        <h2 className="text-[18px] leading-[1.5] font-semibold text-ink">{t("New Order")}</h2>
+        <p className="text-[15px] leading-[1.5] text-ink-2">
+          {t("Order Oxygen, Nitrogen or Dry Ice")}
+        </p>
+        <Button size="md" full onClick={() => navigate("/products")}>
+          {t("Order Now")} <span className="rtl:-scale-x-100">→</span>
+        </Button>
+      </section>
+
+      <h2 className="text-[16px] leading-6 font-semibold text-ink">{t("Products")}</h2>
+      <div className="grid grid-cols-3 gap-2.5 md:grid-cols-4 md:gap-4 lg:grid-cols-5">
+        {shelf.map((product) => (
+          <button
+            key={product.id}
+            type="button"
+            onClick={() => navigate(`/products/${product.id}`)}
+            className="flex flex-col items-start gap-2 rounded-[14px] border border-line bg-surface p-3 text-start transition-colors md:p-5 md:hover:border-gold"
+          >
+            <ProductArt product={product} size={24} className="size-10 rounded-[10px]" />
+            <span className="text-[14px] font-semibold text-ink">{names.name(product)}</span>
+            <span className="text-[12px] text-ink-2">{t(newAccountUnit(product))}</span>
+          </button>
+        ))}
+      </div>
+
+      <h2 className="text-[16px] leading-6 font-semibold text-ink">{t("My Orders")}</h2>
+      <SignInPrompt title={t("Sign in to see your orders")} body={t("Your orders appear here.")} />
     </Screen>
   );
 }
@@ -827,10 +901,21 @@ export function OrderReview() {
   const navigate = useNavigate();
   const { t } = useI18n();
   const names = useProductText();
-  const { draft, setDraft } = useStore();
+  const { draft, setDraft, session } = useStore();
   const s = useDraftSummary();
+  const [askSignIn, setAskSignIn] = useState(false);
+  const closeSheet = useCallback(() => setAskSignIn(false), []);
 
   if (!s.slot) return <Navigate to={`/order/${draft.product}`} replace />;
+
+  // Signing in is asked for here, once — never before browsing or building the order.
+  const submit = () => {
+    if (session.status !== "user") setAskSignIn(true);
+    else {
+      setReturnTo(null);
+      navigate("/order/submitting", { replace: true });
+    }
+  };
 
   return (
     <Screen
@@ -841,12 +926,13 @@ export function OrderReview() {
           <Button full variant="outline" onClick={() => navigate(-1)}>
             {t("Edit")}
           </Button>
-          <Button full onClick={() => navigate("/order/submitting", { replace: true })}>
+          <Button full onClick={submit}>
             {t("Submit Order")}
           </Button>
         </Footer>
       }
     >
+      <SignInSheet open={askSignIn} onClose={closeSheet} />
       <h2 className="text-[16px] leading-6 font-semibold text-ink">{t("Order Summary")}</h2>
       <Card className="flex flex-col p-3.5">
         <KeyValue

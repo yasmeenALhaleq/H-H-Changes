@@ -5,7 +5,51 @@ Design source: Figma file `H-H`, page **High-Fidelity Design** (node `1:4`).
 
 After copying, run `pnpm install` once (new dependencies were added), then `pnpm dev` or `pnpm build`.
 
-## ★ 22 Nov, evening — Drivers: set each one's status from the admin (start here)
+## ★ 22 Nov, night — Guests browse freely, sign in once at the first order (start here)
+
+**Upload these 8 files, then Publish.** If the drivers or oxygen updates below
+are not uploaded yet, these 8 include them too (`store/index.tsx`,
+`customer/shop.tsx`, `i18n/ar.ts` carry everything so far):
+
+- `src/App.tsx`
+- `src/store/index.tsx`
+- `src/components/mobile.tsx`
+- `src/customer/shop.tsx`
+- `src/customer/auth.tsx`
+- `src/customer/orders.tsx`
+- `src/customer/profile.tsx`
+- `src/i18n/ar.ts`
+
+**What changed** (matches the new "Guest" screens in Figma and the updated user flow):
+
+- The app opens straight on **Home**, with no Welcome or Login first. A guest
+  sees "Medical gases & dry ice", the products and the live prices, and can
+  build an order: product, quantity, address, date and time, then review.
+- **Submit Order** while signed out opens a sheet: "Sign in to place your
+  order", with **Login** and **Create account**. After signing in (or creating
+  the account) the customer comes straight back to the review with the order
+  as they left it, and taps Submit again.
+- They sign in **once**: the session stays on the device, so later orders
+  go through without signing in.
+- An address typed in as a guest is saved to the account automatically on
+  sign-in.
+- **My Orders** and **Profile** for a guest show "Sign in to see your orders"
+  and "You're browsing as a guest", with Login / Create account. Profile still
+  offers Language, Help & contact and Install the app.
+- Order details, tracking, cancel, business details, saved addresses and
+  notifications still need an account. Opening one as a guest goes to Login,
+  then back to that screen.
+- Login now has a back arrow. The Welcome screen moved to `#/welcome` and has
+  a "Browse as guest" link. Log out returns to Home.
+- On a computer the top bar shows the tabs for guests too, plus a Login button.
+- All new text has its Arabic version.
+
+**Database (already applied, nothing to upload):** visitors who are not
+signed in may **read** products (active ones only) and company settings
+(prices, delivery fee, hours). Orders, addresses and profiles stay closed to
+them.
+
+## 22 Nov, evening — Drivers: set each one's status from the admin
 
 **Upload these 6 files, then Publish.** This set includes the oxygen update
 just below, so if that one is not uploaded yet, these 6 cover both:

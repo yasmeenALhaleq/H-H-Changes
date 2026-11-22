@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -6,14 +6,15 @@ import {
   ClipboardText,
   Cube,
   House,
+  SignIn,
   User,
   X,
   type Icon,
 } from "@phosphor-icons/react";
 import { useI18n } from "@/i18n";
 import { useInstall } from "@/lib/pwa";
-import { useStore } from "@/store";
-import { Button, cx, LanguageSwitch } from "./ui";
+import { setReturnTo, useStore } from "@/store";
+import { Button, cx, EmptyState, LanguageSwitch } from "./ui";
 
 /** How wide a screen's content may grow on a tablet or computer. */
 export type ScreenWidth = "form" | "wide" | "auth";
@@ -80,19 +81,20 @@ export function Screen({
   );
 }
 
-/** Top bar on tablets and computers: brand, tabs (when signed in), notifications, language. */
+/** Top bar on tablets and computers: brand, tabs, notifications (or Login for a guest), language. */
 function DesktopBar() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { t } = useI18n();
   const { session } = useStore();
+  const signIn = useSignIn();
   const signedIn = session.status === "user";
   return (
     <header className="sticky top-0 z-20 hidden h-[72px] shrink-0 border-b border-line bg-surface/95 backdrop-blur md:block">
       <div className="mx-auto flex h-full max-w-[1120px] items-center gap-4 px-6 lg:gap-8 lg:px-8">
         <button
           type="button"
-          onClick={() => navigate(signedIn ? "/home" : "/")}
+          onClick={() => navigate("/home")}
           className="flex shrink-0 items-center gap-3"
         >
           <span className="flex size-10 items-center justify-center rounded-[10px] bg-gold-gradient text-[13px] font-bold text-bg">
@@ -102,7 +104,7 @@ function DesktopBar() {
             {t("H&H Company")}
           </span>
         </button>
-        {signedIn && (
+        {session.status !== "loading" && (
           <nav className="flex min-w-0 flex-1 items-center gap-1">
             {tabs.map((tab) => {
               const active = tab.match.some((m) => pathname === m || pathname.startsWith(`${m}/`));
@@ -128,12 +130,19 @@ function DesktopBar() {
         )}
         <div className="ms-auto flex items-center gap-3">
           <LanguageSwitch />
-          {signedIn && (
+          {signedIn ? (
             <IconButton
               icon={Bell}
               label={t("Notifications")}
               onClick={() => navigate("/profile/notifications")}
             />
+          ) : (
+            session.status === "guest" &&
+            !/^\/(login|signup|welcome)/.test(pathname) && (
+              <Button size="sm" variant="outline" onClick={() => signIn("login", pathname)}>
+                {t("Login")}
+              </Button>
+            )
           )}
         </div>
       </div>
@@ -183,6 +192,7 @@ export function MobileHeader({
 }) {
   const navigate = useNavigate();
   const { t } = useI18n();
+  const { session } = useStore();
   return (
     <header
       className={cx(
@@ -214,7 +224,7 @@ export function MobileHeader({
       >
         {brand ? t("H&H Company") : title}
       </h1>
-      {bell && (
+      {bell && session.status === "user" && (
         <span className="md:hidden">
           <IconButton
             icon={Bell}
@@ -377,5 +387,106 @@ export function InstallBanner() {
         {install.canPrompt ? t("Install the app") : t("How to install")}
       </Button>
     </aside>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Guests: sign in only when it is needed                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Opens Login or Create account. `back` is where to return afterwards
+ * (e.g. the order review); `null` lands on Home.
+ */
+export function useSignIn() {
+  const navigate = useNavigate();
+  return (to: "login" | "signup", back: string | null = null) => {
+    setReturnTo(back);
+    navigate(`/${to}`);
+  };
+}
+
+/**
+ * Shown when a guest submits an order: they sign in once, then come straight
+ * back to the review with the order as they left it.
+ */
+export function SignInSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useI18n();
+  const signIn = useSignIn();
+
+  useEffect(() => {
+    if (!open) return;
+    const before = document.activeElement as HTMLElement | null;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      before?.focus?.();
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center">
+      <button
+        type="button"
+        aria-label={t("Close")}
+        tabIndex={-1}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/60"
+      />
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sign-in-sheet-title"
+        className="relative flex w-full max-w-[480px] flex-col gap-4 rounded-t-[24px] border-t border-line bg-surface px-6 pt-3 pb-8 md:rounded-[24px] md:border md:pt-6"
+      >
+        <span aria-hidden className="mx-auto h-1 w-10 rounded-full bg-line md:hidden" />
+        <h2 id="sign-in-sheet-title" className="text-[20px] font-semibold text-ink">
+          {t("Sign in to place your order")}
+        </h2>
+        <p className="text-[14px] leading-[1.6] text-ink-2">
+          {t(
+            "You only sign in once. After that you stay signed in on this device, and your next orders go through without signing in again.",
+          )}
+        </p>
+        <Button autoFocus full onClick={() => signIn("login", "/order/review")}>
+          {t("Login")}
+        </Button>
+        <Button full variant="outline" onClick={() => signIn("signup", "/order/review")}>
+          {t("Create account")}
+        </Button>
+        <p className="text-center text-[12px] leading-[1.5] text-ink-2">
+          {t("Your order is kept — you come back to this review right after signing in.")}
+        </p>
+      </section>
+    </div>
+  );
+}
+
+/** In place of orders or account details while browsing as a guest. */
+export function SignInPrompt({ title, body }: { title: string; body: string }) {
+  const { t } = useI18n();
+  const { pathname } = useLocation();
+  const signIn = useSignIn();
+  return (
+    <EmptyState
+      compact
+      icon={SignIn}
+      title={title}
+      body={body}
+      action={
+        <div className="flex flex-wrap justify-center gap-2">
+          <Button size="sm" onClick={() => signIn("login", pathname)}>
+            {t("Login")}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => signIn("signup", pathname)}>
+            {t("Create account")}
+          </Button>
+        </div>
+      }
+    />
   );
 }

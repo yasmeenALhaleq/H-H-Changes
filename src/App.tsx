@@ -1,7 +1,7 @@
-import { HashRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { HashRouter, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { Spinner } from "@phosphor-icons/react";
 import { I18nProvider } from "@/i18n";
-import { StoreProvider, useStore } from "@/store";
+import { peekReturnTo, setReturnTo, StoreProvider, useStore } from "@/store";
 import { AdminProvider } from "@/admin/data";
 import { AdminLayout } from "@/admin/layout";
 import {
@@ -57,18 +57,34 @@ function Splash() {
   );
 }
 
-/** Customer screens need a signed-in account; guests are sent to the welcome screen. */
+/** Waits for the saved session to be checked; then guests and customers both see the screen. */
+function Ready() {
+  const { session } = useStore();
+  return session.status === "loading" ? <Splash /> : <Outlet />;
+}
+
+/**
+ * Screens that belong to an account (orders, business details, addresses).
+ * A guest who opens one is asked to sign in, then brought back to it.
+ */
 function CustomerOnly() {
   const { session } = useStore();
+  const { pathname } = useLocation();
   if (session.status === "loading") return <Splash />;
-  return session.status === "user" ? <Outlet /> : <Navigate to="/" replace />;
+  if (session.status === "user") return <Outlet />;
+  setReturnTo(pathname);
+  return <Navigate to="/login" replace />;
 }
 
 /** Welcome / login / sign-up are skipped for customers who are already signed in. */
 function GuestOnly() {
   const { session } = useStore();
   if (session.status === "loading") return <Splash />;
-  return session.status === "guest" ? <Outlet /> : <Navigate to="/home" replace />;
+  return session.status === "guest" ? (
+    <Outlet />
+  ) : (
+    <Navigate to={peekReturnTo() ?? "/home"} replace />
+  );
 }
 
 /**
@@ -82,9 +98,12 @@ export default function App() {
         <AdminProvider>
           <HashRouter>
             <Routes>
-              {/* Customer — auth */}
+              {/* The app opens on Home: guests browse freely and sign in only to place an order. */}
+              <Route path="/" element={<Navigate to="/home" replace />} />
+
+              {/* Customer — sign in (skipped once signed in) */}
               <Route element={<GuestOnly />}>
-                <Route path="/" element={<Welcome />} />
+                <Route path="/welcome" element={<Welcome />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<SignUp />} />
               </Route>
@@ -97,31 +116,31 @@ export default function App() {
               <Route path="/password-updated" element={<AuthSuccess kind="password" />} />
               <Route path="/install" element={<InstallApp />} />
 
-              {/* Customer — signed-in area */}
-              <Route element={<CustomerOnly />}>
+              {/* Customer — open to guests: browse, build an order, review it */}
+              <Route element={<Ready />}>
                 <Route path="/home" element={<Home />} />
                 <Route path="/products" element={<Products />} />
                 <Route path="/products/:id" element={<ProductDetails />} />
                 <Route path="/order/review" element={<OrderReview />} />
+                <Route path="/order/:id" element={<OrderForm />} />
+                <Route path="/addresses/new" element={<AddAddress />} />
+                <Route path="/orders" element={<MyOrders />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/profile/language" element={<LanguageSettings />} />
+                <Route path="/profile/help" element={<HelpContact />} />
+              </Route>
+
+              {/* Customer — needs an account */}
+              <Route element={<CustomerOnly />}>
                 <Route path="/order/submitting" element={<OrderSubmitting />} />
                 <Route path="/order/reward/:uid" element={<RewardCelebration />} />
                 <Route path="/order/confirmed/:uid" element={<OrderConfirmation />} />
-                <Route path="/order/:id" element={<OrderForm />} />
-                <Route path="/addresses/new" element={<AddAddress />} />
-
-                {/* Customer — orders */}
-                <Route path="/orders" element={<MyOrders />} />
                 <Route path="/orders/:uid" element={<OrderDetails />} />
                 <Route path="/orders/:uid/track" element={<OrderTracking />} />
                 <Route path="/orders/:uid/cancel" element={<CancelOrder />} />
-
-                {/* Customer — profile */}
-                <Route path="/profile" element={<Profile />} />
                 <Route path="/profile/business" element={<BusinessInformation />} />
                 <Route path="/profile/addresses" element={<SavedAddresses />} />
                 <Route path="/profile/notifications" element={<NotificationSettings />} />
-                <Route path="/profile/language" element={<LanguageSettings />} />
-                <Route path="/profile/help" element={<HelpContact />} />
               </Route>
 
               {/* Admin dashboard */}
@@ -139,7 +158,7 @@ export default function App() {
                 <Route path="settings" element={<AdminSettings />} />
               </Route>
 
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<Navigate to="/home" replace />} />
             </Routes>
           </HashRouter>
         </AdminProvider>

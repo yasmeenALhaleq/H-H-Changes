@@ -671,4 +671,22 @@ export const ar: Record<string, string> = {
   "Remove {name}": "إزالة {name}",
   "Enter the driver name.": "أدخل اسم السائق.",
   "Only an admin may change drivers": "تعديل السائقين متاح للمسؤول فقط",
+
+  // Guests — browse first, sign in once at the first order
+  "Browse as guest": "تصفّح كضيف",
+  Back: "رجوع",
+  "Create account": "إنشاء حساب",
+  "Medical gases & dry ice": "غازات طبية وثلج جاف",
+  "Browse freely. You sign in once, when you place your first order.":
+    "تصفّح بحرية، وسجّل دخولك مرة واحدة فقط عند أول طلب.",
+  "Sign in to see your orders": "سجّل دخولك لعرض طلباتك",
+  "Your orders appear here.": "ستظهر طلباتك هنا.",
+  "Sign in to place your order": "سجّل دخولك لإتمام الطلب",
+  "You only sign in once. After that you stay signed in on this device, and your next orders go through without signing in again.":
+    "تسجّل دخولك مرة واحدة فقط، وبعدها تبقى مسجّلاً على هذا الجهاز، وتُرسل طلباتك القادمة دون تسجيل دخول من جديد.",
+  "Your order is kept — you come back to this review right after signing in.":
+    "طلبك محفوظ، وستعود إلى صفحة المراجعة مباشرة بعد تسجيل الدخول.",
+  "You're browsing as a guest": "أنت تتصفح كضيف",
+  "Sign in once to order, and to keep your business details and addresses.":
+    "سجّل دخولك مرة واحدة لتطلب، ولحفظ بيانات منشأتك وعناوينك.",
 };

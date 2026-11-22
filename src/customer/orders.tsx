@@ -4,7 +4,7 @@ import { MapPin, Package } from "@phosphor-icons/react";
 import { useI18n } from "@/i18n";
 import { canCancel, isActive, useStore, type Order, type OrderStatus } from "@/store";
 import { useOrderText, useProductText } from "@/store/format";
-import { Footer, MobileHeader, Screen } from "@/components/mobile";
+import { Footer, MobileHeader, Screen, SignInPrompt } from "@/components/mobile";
 import {
   Avatar,
   Button,
@@ -45,9 +45,10 @@ function stepState(order: Order, index: number): "done" | "current" | "todo" {
 export function MyOrders() {
   const navigate = useNavigate();
   const { t } = useI18n();
-  const { orders } = useStore();
+  const { orders, session } = useStore();
   const [params, setParams] = useSearchParams();
   const tab = params.get("tab") === "history" ? "history" : "active";
+  const guest = session.status !== "user";
   const mine = orders.filter((o) => o.mine);
   const list = mine.filter((o) => (tab === "active" ? isActive(o) : !isActive(o)));
 
@@ -69,7 +70,12 @@ export function MyOrders() {
           { value: "history", label: t("History") },
         ]}
       />
-      {list.length > 0 ? (
+      {guest ? (
+        <SignInPrompt
+          title={t("Sign in to see your orders")}
+          body={t("Your orders appear here.")}
+        />
+      ) : list.length > 0 ? (
         <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2">
           {list.map((order) => (
             <OrderCard key={order.uid} order={order} />

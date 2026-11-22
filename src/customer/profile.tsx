@@ -18,7 +18,7 @@ import { usernameProblem, useStore, type CustomerType, type NotificationPrefs } 
 import { initials } from "@/store/format";
 import { callCompany, canCall, whatsappCompany } from "@/lib/company";
 import { useInstall } from "@/lib/pwa";
-import { Footer, MobileHeader, Screen } from "@/components/mobile";
+import { Footer, MobileHeader, Screen, SignInPrompt } from "@/components/mobile";
 import {
   Avatar,
   Button,
@@ -36,12 +36,61 @@ import {
 export function Profile() {
   const navigate = useNavigate();
   const { t, lang } = useI18n();
-  const { account, addresses, signOut } = useStore();
+  const { account, addresses, signOut, session } = useStore();
   const install = useInstall();
   // Where the browser offers its own install dialog, use it; otherwise show the steps.
   const openInstall = async () => {
     if (!install.canPrompt || !(await install.prompt())) navigate("/install");
   };
+  const languageRow = (
+    <ListRow
+      icon={Globe}
+      title={t("Language")}
+      subtitle={t("App language")}
+      trailing={
+        <span className="shrink-0 text-[15px] font-semibold text-gold">
+          {lang === "ar" ? "العربية" : "English"}
+        </span>
+      }
+      onClick={() => navigate("/profile/language")}
+    />
+  );
+  const helpRow = (
+    <ListRow
+      icon={Question}
+      title={t("Help & contact")}
+      subtitle={t("Call or WhatsApp our team")}
+      onClick={() => navigate("/profile/help")}
+    />
+  );
+  const installRow = !install.installed && (
+    <ListRow
+      icon={DeviceMobile}
+      title={t("Install the app")}
+      subtitle={t("Add H&H to your phone's home screen")}
+      onClick={() => void openInstall()}
+    />
+  );
+
+  // Browsing as a guest: no account yet, so only what works without one.
+  if (session.status !== "user") {
+    return (
+      <Screen
+        nav
+        header={<MobileHeader title={t("Profile")} />}
+        bodyClassName="gap-3 px-6 pt-4 pb-3"
+      >
+        <SignInPrompt
+          title={t("You're browsing as a guest")}
+          body={t("Sign in once to order, and to keep your business details and addresses.")}
+        />
+        {languageRow}
+        {helpRow}
+        {installRow}
+      </Screen>
+    );
+  }
+
   return (
     <Screen
       nav
@@ -52,7 +101,7 @@ export function Profile() {
           <Button
             full
             variant="outline"
-            onClick={() => void signOut().then(() => navigate("/", { replace: true }))}
+            onClick={() => void signOut().then(() => navigate("/home", { replace: true }))}
           >
             {t("Log out")}
           </Button>
@@ -86,31 +135,9 @@ export function Profile() {
         subtitle={t("Order updates and delivery alerts")}
         onClick={() => navigate("/profile/notifications")}
       />
-      <ListRow
-        icon={Globe}
-        title={t("Language")}
-        subtitle={t("App language")}
-        trailing={
-          <span className="shrink-0 text-[15px] font-semibold text-gold">
-            {lang === "ar" ? "العربية" : "English"}
-          </span>
-        }
-        onClick={() => navigate("/profile/language")}
-      />
-      <ListRow
-        icon={Question}
-        title={t("Help & contact")}
-        subtitle={t("Call or WhatsApp our team")}
-        onClick={() => navigate("/profile/help")}
-      />
-      {!install.installed && (
-        <ListRow
-          icon={DeviceMobile}
-          title={t("Install the app")}
-          subtitle={t("Add H&H to your phone's home screen")}
-          onClick={() => void openInstall()}
-        />
-      )}
+      {languageRow}
+      {helpRow}
+      {installRow}
     </Screen>
   );
 }

@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -458,6 +459,39 @@ export type Session =
 
 export type SignUpInput = Account & { password: string };
 
+/*
+ * Guests browse freely and only sign in when they place an order. Before
+ * sending them to sign in, the app notes where to bring them back to
+ * (the order review); the sign-in screens read it once they are done.
+ * Kept for the browser tab only, so a later visit starts from Home.
+ */
+const RETURN_KEY = "hh.returnTo";
+
+export function setReturnTo(path: string | null) {
+  try {
+    if (path) sessionStorage.setItem(RETURN_KEY, path);
+    else sessionStorage.removeItem(RETURN_KEY);
+  } catch {
+    /* storage blocked: the customer lands on Home instead */
+  }
+}
+
+/** Where to go after signing in, if a screen asked for it. */
+export function peekReturnTo(): string | null {
+  try {
+    return sessionStorage.getItem(RETURN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Reads the return path and forgets it; Home when there is none. */
+export function takeReturnTo(): string {
+  const path = peekReturnTo();
+  setReturnTo(null);
+  return path ?? "/home";
+}
+
 /** Result of an action that talks to the server: `null` on success, otherwise a message to show. */
 type Failure = string | null;
 
@@ -678,6 +712,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [productRows, setProductRows] = useState<ProductRow[]>([]);
+  /**
+   * Addresses a guest typed in before signing in. They live on this device
+   * only; once the guest signs in they are saved to the account and the
+   * order in progress keeps pointing at the same address.
+   */
+  const guestAddresses = useRef<Address[]>([]);
+
+  /** Products and company settings — all a guest needs to browse and price an order. */
+  const loadPublic = useCallback(async () => {
+    const [productList, settingsRow] = await Promise.all([
+      neon.from("products").select("*"),
+      neon.from("settings").select("*").eq("id", 1).maybeSingle(),
+    ]);
+    if (productList.data) setProductRows(productList.data as ProductRow[]);
+    if (settingsRow.data) setSettings(toSettings(settingsRow.data as SettingsRow));
+  }, []);
 
   /** Loads the signed-in account's profile, addresses and orders (all orders for an admin). */
   const loadCustomer = useCallback(async (userId: string, email: string) => {
@@ -765,7 +815,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         : { ...emptyAccount, email },
     );
     setLoyalty(row?.loyalty ?? 0);
-    setAddresses(((addressRows.data ?? []) as AddressRow[]).map(toAddress));
+    const saved = ((addressRows.data ?? []) as AddressRow[]).map(toAddress);
+    // Addresses entered as a guest are saved to the account now that it is signed in.
+    const pending = guestAddresses.current;
+    guestAddresses.current = [];
+    for (const local of pending) {
+      const existing = saved.find(
+        (a) => a.line === local.line && a.city === local.city && a.label === local.label,
+      );
+      const created =
+        existing ??
+        (await neon
+          .from("addresses")
+          .insert({
+            user_id: userId,
+            label: local.label,
+            line: local.line,
+            city: local.city,
+            notes: local.notes ?? null,
+          })
+          .select()
+          .single()
+          .then((r) => (r.data ? toAddress(r.data as AddressRow) : null)));
+      if (!created) continue;
+      if (!existing) saved.push(created);
+      setDraftState((prev) =>
+        prev.addressId === local.id ? { ...prev, addressId: created.id } : prev,
+      );
+    }
+    setAddresses(saved);
     setAllOrders(((orderRows.data ?? []) as OrderRow[]).map(toOrder));
     setSession({ status: "user", userId, email });
   }, []);
@@ -779,6 +857,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setDrivers([]);
     setLoyalty(0);
     setDraftState(emptyDraft("dry-ice"));
+    guestAddresses.current = [];
     setSession({ status: "guest" });
   }, []);
 
@@ -796,10 +875,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .catch(() => {
         if (!cancelled) setSession({ status: "guest" });
       });
+
     return () => {
       cancelled = true;
     };
   }, [loadCustomer]);
+
+  // A guest still sees the live catalog and prices.
+  const isGuest = session.status === "guest";
+  useEffect(() => {
+    if (isGuest) void loadPublic().catch(() => {});
+  }, [isGuest, loadPublic]);
 
   // Keep orders and loyalty fresh: other people change them (the admin confirms, the customer cancels).
   const activeUser = session.status === "user" ? session.userId : null;
@@ -978,7 +1064,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addresses,
       addAddress: async (address) => {
         try {
-          if (!userId) return null;
+          if (!userId) {
+            // A guest's address stays on this device until they sign in.
+            const local: Address = { ...address, id: `guest-${Date.now()}` };
+            guestAddresses.current = [...guestAddresses.current, local];
+            setAddresses((prev) => [...prev, local]);
+            return local;
+          }
           const { data, error } = await neon
             .from("addresses")
             .insert({

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Check, EnvelopeSimple } from "@phosphor-icons/react";
+import { ArrowLeft, Check, EnvelopeSimple } from "@phosphor-icons/react";
 import logo from "@/assets/hh-logo.png";
 import { useI18n } from "@/i18n";
-import { usernameProblem, useStore, type CustomerType } from "@/store";
-import { Footer, MobileHeader, Screen } from "@/components/mobile";
+import { takeReturnTo, usernameProblem, useStore, type CustomerType } from "@/store";
+import { Footer, IconButton, MobileHeader, Screen } from "@/components/mobile";
 import { Button, Chips, cx, Input, LanguageSwitch, LinkButton, RadioDot } from "@/components/ui";
 
 const PHONE_MASK = "+962 7X XXX XXXX";
@@ -38,6 +38,9 @@ export function Welcome() {
           <Button full variant="outline" onClick={() => navigate("/signup")}>
             {t("Sign Up")}
           </Button>
+          <LinkButton className="justify-center text-[14px]" onClick={() => navigate("/home")}>
+            {t("Browse as guest")}
+          </LinkButton>
         </Footer>
       }
     >
@@ -86,7 +89,8 @@ export function Login() {
     const failure = await signIn(id.trim(), password);
     setBusy(false);
     if (failure) setError(failure);
-    else navigate("/home", { replace: true });
+    // Back to where sign-in was asked for (the order review), otherwise Home.
+    else navigate(takeReturnTo(), { replace: true });
   };
 
   return (
@@ -98,8 +102,19 @@ export function Login() {
           background: "radial-gradient(circle, rgb(221 193 74 / 0.16) 0%, rgb(221 193 74 / 0) 70%)",
         }}
       />
-      <div className="relative flex justify-end md:hidden">
-        <LanguageSwitch />
+      <div className="relative flex items-center justify-between">
+        <IconButton
+          icon={ArrowLeft}
+          flip
+          label={t("Back")}
+          onClick={() =>
+            // Opened straight on this screen there is nothing to go back to.
+            (window.history.state?.idx ?? 0) > 0 ? navigate(-1) : navigate("/home")
+          }
+        />
+        <span className="md:hidden">
+          <LanguageSwitch />
+        </span>
       </div>
       <div className="relative mt-7 flex justify-center">
         <Logo />
@@ -465,8 +480,11 @@ export function AuthSuccess({ kind }: { kind: "verified" | "password" }) {
       bodyClassName="items-stretch justify-center gap-[26px] p-6"
       footer={
         <Footer surface={false} className="pt-4">
-          <Button full onClick={() => navigate(verified ? "/home" : "/login")}>
-            {t(verified ? "Go to Home" : "Back to Login")}
+          <Button
+            full
+            onClick={() => navigate(verified ? takeReturnTo() : "/login", { replace: verified })}
+          >
+            {t(verified ? "Continue" : "Back to Login")}
           </Button>
         </Footer>
       }
