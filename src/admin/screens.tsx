@@ -309,9 +309,20 @@ export function AdminProducts() {
               </span>
             ),
             names.unitLong(product),
-            product.price === null
-              ? t("To be confirmed")
-              : t("{a} / {u}", { a: money(product.price), u: names.unit(product) }),
+            product.jarPrices
+              ? (["3L", "8L"] as const)
+                  .map(
+                    (size) =>
+                      `${t(`${size} jar`)}: ${
+                        product.jarPrices?.[size] == null
+                          ? t("To be confirmed")
+                          : money(product.jarPrices[size] as number)
+                      }`,
+                  )
+                  .join(" · ")
+              : product.price === null
+                ? t("To be confirmed")
+                : t("{a} / {u}", { a: money(product.price), u: names.unit(product) }),
             `${product.min} ${names.unit(product)}`,
             `${product.step} ${names.unit(product)}`,
             <Badge key="s" tone={product.active ? "muted" : "warn"}>
@@ -343,6 +354,8 @@ function formFrom(product: CatalogProduct | undefined) {
     step: String(product?.step ?? 1),
     max: String(product?.max ?? 100),
     price: product?.price?.toFixed(2) ?? "",
+    jar3: product?.jarPrices?.["3L"]?.toFixed(2) ?? "",
+    jar8: product?.jarPrices?.["8L"]?.toFixed(2) ?? "",
     description: product?.description ?? "",
     descriptionAr: product?.descriptionAr ?? "",
     active: product?.active ?? true,
@@ -375,8 +388,12 @@ export function ProductEditor() {
   const byJar = product ? PRICED_BY_JAR.includes(product.id) : false;
   const hasOrders = product ? orders.some((o) => o.product === product.id) : false;
 
-  const parsedPrice = form.price.trim() === "" ? null : Number.parseFloat(form.price);
-  const priceBroken = parsedPrice !== null && !(Number.isFinite(parsedPrice) && parsedPrice >= 0);
+  const parse = (v: string) => (v.trim() === "" ? null : Number.parseFloat(v));
+  const broken = (v: number | null) => v !== null && !(Number.isFinite(v) && v >= 0);
+  const parsedPrice = parse(form.price);
+  const jar3 = parse(form.jar3);
+  const jar8 = parse(form.jar8);
+  const priceBroken = byJar ? broken(jar3) || broken(jar8) : broken(parsedPrice);
   const min = Number.parseInt(form.min, 10);
   const step = Number.parseInt(form.step, 10);
   const max = Number.parseInt(form.max, 10);
@@ -396,7 +413,8 @@ export function ProductEditor() {
     min: locked && product ? product.min : min,
     step: locked && product ? product.step : step,
     max: locked && product ? product.max : max,
-    price: byJar && product ? product.price : parsedPrice,
+    price: byJar ? jar3 : parsedPrice,
+    ...(byJar ? { jarPrices: { "3L": jar3, "8L": jar8 } } : {}),
     description: form.description,
     descriptionAr: form.descriptionAr,
     active: form.active,
@@ -500,11 +518,29 @@ export function ProductEditor() {
             />
           )}
           {byJar ? (
-            <Field label={t("Price per unit (proposed)")}>
-              <span className="flex h-11 items-center text-ink-3">
-                {t("Priced by the jar — set in the code until the pricing is decided.")}
-              </span>
-            </Field>
+            <div className="flex flex-col gap-2">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Input
+                  label={t("Price per 3L jar (proposed)")}
+                  inputMode="decimal"
+                  placeholder={t("Leave empty while the price is not confirmed")}
+                  value={form.jar3}
+                  error={broken(jar3) && t("Enter 0 or more.")}
+                  onChange={(e) => change({ jar3: e.target.value.replace(/[^\d.]/g, "") })}
+                />
+                <Input
+                  label={t("Price per 8L jar (proposed)")}
+                  inputMode="decimal"
+                  placeholder={t("Leave empty while the price is not confirmed")}
+                  value={form.jar8}
+                  error={broken(jar8) && t("Enter 0 or more.")}
+                  onChange={(e) => change({ jar8: e.target.value.replace(/[^\d.]/g, "") })}
+                />
+              </div>
+              <p className="text-[12px] leading-5 text-ink-3">
+                {t("Customers pick a jar size and a number of jars; each size has its own price.")}
+              </p>
+            </div>
           ) : (
             <Input
               label={t("Price per unit (proposed)")}
@@ -639,14 +675,28 @@ export function ProductEditor() {
           </Panel>
           <Panel title={t("Customer sees")} className="flex flex-col gap-2 p-5">
             <span className="text-[15px] font-semibold text-ink">{displayName || "—"}</span>
-            <span className="text-[13px] text-ink-2">
-              {input.price === null
-                ? t("To be confirmed")
-                : t("{a} / {u} (proposed)", {
-                    a: money(input.price),
-                    u: locked && product ? names.unit(product) : unitShort,
-                  })}
-            </span>
+            {byJar ? (
+              (["3L", "8L"] as const).map((size) => {
+                const value = size === "3L" ? jar3 : jar8;
+                return (
+                  <span key={size} className="text-[13px] text-ink-2">
+                    {t(`${size} jar`)}:{" "}
+                    {value === null || broken(value)
+                      ? t("To be confirmed")
+                      : t("{p} / jar (proposed)", { p: money(value) })}
+                  </span>
+                );
+              })
+            ) : (
+              <span className="text-[13px] text-ink-2">
+                {input.price === null
+                  ? t("To be confirmed")
+                  : t("{a} / {u} (proposed)", {
+                      a: money(input.price),
+                      u: locked && product ? names.unit(product) : unitShort,
+                    })}
+              </span>
+            )}
           </Panel>
           {product && !locked && (
             <Panel className="flex flex-col gap-3 p-5">

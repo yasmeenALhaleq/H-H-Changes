@@ -17,7 +17,8 @@ import { errorMessage, neon } from "@/lib/neon";
 export type BuiltInId = "dry-ice" | "nitrogen" | "oxygen";
 /** Any product id — a built-in one, or one the operations team added from the dashboard. */
 export type ProductId = string;
-export type Unit = "kg" | "L" | "pcs";
+/** `jar` is oxygen only: it is sold as a number of 3L or 8L jars. */
+export type Unit = "kg" | "L" | "pcs" | "jar";
 export type JarSize = "3L" | "8L";
 
 export type Product = {
@@ -47,9 +48,12 @@ export const UNIT_LONG: Record<Unit, string> = {
   kg: "Kilogram (kg)",
   L: "Liter (L)",
   pcs: "Piece (pcs)",
+  jar: "Jar (3L / 8L)",
 };
 
-export const JAR_PRICE: Record<JarSize, number> = { "3L": 18, "8L": 40 };
+/** Oxygen jar prices until the database answers; the admin sets the live ones. */
+export const JAR_PRICE: Record<JarSize, number> = { "3L": 20, "8L": 40 };
+export const JAR_SIZES: JarSize[] = ["3L", "8L"];
 
 /**
  * Company settings, kept in the database so the operations team changes them
@@ -122,13 +126,14 @@ export const PRODUCTS: Record<BuiltInId, Product> = {
     id: "oxygen",
     name: "Oxygen",
     nameAr: "",
-    unit: "L",
+    unit: "jar",
     unitLong: "Jar (3L / 8L)",
-    price: 6,
-    min: 3,
+    // Sold by the jar: the quantity is a number of jars, each priced by its size.
+    price: 20,
+    min: 1,
     step: 1,
-    max: 40,
-    detailQty: 3,
+    max: 20,
+    detailQty: 1,
     description: "Medical-grade oxygen supplied in refillable jars. Choose a 3L or 8L jar.",
     descriptionAr: "",
     builtIn: true,
@@ -146,6 +151,8 @@ export const isBuiltIn = (id: string | undefined): id is BuiltInId =>
  * because the order screens have rules of their own for them (oxygen jars).
  */
 export type CatalogProduct = Product & {
+  /** Price per jar by size, for a product sold by the jar (oxygen); null for the rest. */
+  jarPrices?: Record<JarSize, number | null> | null;
   /** Off hides the product from the customer app. */
   active: boolean;
   /** The product photo, as a data URL, or null while none is set. */
@@ -167,6 +174,7 @@ type ProductRow = {
   max_qty: number;
   built_in: boolean;
   sort: number;
+  jar_prices: Partial<Record<JarSize, number | string | null>> | null;
 };
 
 /** What the admin fills in to add or change a product. */
@@ -182,6 +190,8 @@ export type ProductInput = {
   descriptionAr: string;
   active: boolean;
   image: string | null;
+  /** Per-jar prices, only for a product sold by the jar. */
+  jarPrices?: Record<JarSize, number | null>;
 };
 
 /** A placeholder for an order whose product no longer exists in the catalog. */
@@ -207,9 +217,22 @@ const UNKNOWN_PRODUCT = (id: ProductId): CatalogProduct => ({
 export function findProduct(catalog: CatalogProduct[], id: ProductId): CatalogProduct {
   const found = catalog.find((p) => p.id === id);
   if (found) return found;
-  if (isBuiltIn(id)) return { ...PRODUCTS[id], active: true, image: null };
+  if (isBuiltIn(id))
+    return { ...PRODUCTS[id], jarPrices: defaultJars(id), active: true, image: null };
   return UNKNOWN_PRODUCT(id);
 }
+
+/** Built-in jar prices for oxygen until the database answers. */
+const defaultJars = (id: ProductId) => (id === "oxygen" ? { ...JAR_PRICE } : null);
+
+const jarsFrom = (row: ProductRow): Record<JarSize, number | null> | null => {
+  if (!row.jar_prices) return null;
+  const read = (size: JarSize) => {
+    const v = row.jar_prices?.[size];
+    return v === null || v === undefined ? null : Number(v);
+  };
+  return { "3L": read("3L"), "8L": read("8L") };
+};
 
 /** Turns a database row into a catalog product, built-in details kept for the built-in three. */
 function toCatalogProduct(row: ProductRow): CatalogProduct {
@@ -221,6 +244,7 @@ function toCatalogProduct(row: ProductRow): CatalogProduct {
       price,
       description: row.description || base.description,
       descriptionAr: row.description_ar ?? "",
+      jarPrices: jarsFrom(row) ?? defaultJars(row.id),
       active: row.active,
       image: row.image ?? null,
     };
@@ -243,12 +267,24 @@ function toCatalogProduct(row: ProductRow): CatalogProduct {
   };
 }
 
-/** Oxygen is priced by the jar, so its price is not the admin's to set yet. */
+/** Products sold by the jar: the quantity is a number of jars, each priced by its size. */
 export const PRICED_BY_JAR: ProductId[] = ["oxygen"];
 
-/** Price per unit for a product, taking the oxygen jar size into account. */
-export function unitPrice(product: ProductId, jar: JarSize = "3L"): number | null {
-  if (product === "oxygen") return JAR_PRICE[jar] / Number.parseInt(jar, 10);
+/**
+ * Price of one unit — one kilogram, one liter, one piece, or one jar of the chosen
+ * size for oxygen. Taken from the catalog (what the admin saved) when it is given.
+ */
+export function unitPrice(
+  product: ProductId,
+  jar: JarSize = "3L",
+  catalog: CatalogProduct[] = [],
+): number | null {
+  const saved = catalog.find((p) => p.id === product);
+  if (PRICED_BY_JAR.includes(product)) {
+    const jars = saved?.jarPrices ?? defaultJars(product);
+    return jars ? (jars[jar] ?? null) : null;
+  }
+  if (saved) return saved.price;
   return isBuiltIn(product) ? PRODUCTS[product].price : null;
 }
 
@@ -272,8 +308,7 @@ export function priceOrder(
   settings: Pick<Settings, "deliveryFee" | "rewardPercent"> = DEFAULT_SETTINGS,
   catalog: CatalogProduct[] = [],
 ): Pricing {
-  const saved = catalog.find((p) => p.id === product);
-  const unit = saved && !PRICED_BY_JAR.includes(product) ? saved.price : unitPrice(product, jar);
+  const unit = unitPrice(product, jar, catalog);
   if (unit === null) return { unit, subtotal: null, discount: 0, total: null };
   const subtotal = unit * qty;
   const gross = subtotal + settings.deliveryFee;
@@ -480,6 +515,7 @@ const productArgs = (input: ProductInput) => ({
   p_description_ar: input.descriptionAr.trim(),
   p_active: input.active,
   p_image: input.image,
+  ...(input.jarPrices ? { p_jar_prices: input.jarPrices } : {}),
 });
 
 /* Database rows (snake_case) → app types */

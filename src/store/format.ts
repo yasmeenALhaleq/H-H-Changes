@@ -40,10 +40,8 @@ export function useOrderText() {
   const products = useProductText();
 
   const qty = (product: ProductId, amount: number, jar?: JarSize): string => {
-    if (product === "oxygen" && jar) {
-      const size = Number.parseInt(jar, 10);
-      if (amount % size === 0) return `${t(`${jar} jar`)} × ${amount / size}`;
-    }
+    // Oxygen is counted in jars: "8L jar × 2".
+    if (product === "oxygen") return `${t(`${jar ?? "3L"} jar`)} × ${amount}`;
     return `${amount} ${products.unit(product)}`;
   };
 

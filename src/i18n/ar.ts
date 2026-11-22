@@ -645,4 +645,11 @@ export const ar: Record<string, string> = {
   "Open the app from your home screen": "افتح التطبيق من الشاشة الرئيسية",
   "How to install": "طريقة التثبيت",
   Close: "إغلاق",
+
+  // Oxygen sold by the jar
+  "Price per 3L jar (proposed)": "سعر أسطوانة 3 لتر (مقترح)",
+  "Price per 8L jar (proposed)": "سعر أسطوانة 8 لتر (مقترح)",
+  "Customers pick a jar size and a number of jars; each size has its own price.":
+    "العميل يختار حجم الأسطوانة وعددها، ولكل حجم سعره الخاص.",
+  "Number of jars · Min {min} · Max {max}": "عدد الأسطوانات · الحد الأدنى {min} · الحد الأقصى {max}",
 };

@@ -18,7 +18,6 @@ import {
 import { useI18n } from "@/i18n";
 import {
   isActive,
-  JAR_PRICE,
   priceOrder,
   type BuiltInId,
   type CatalogProduct,
@@ -59,10 +58,24 @@ export const productIcon = (id: string): Icon =>
   (PRODUCT_ICON as Record<string, Icon | undefined>)[id] ?? Package;
 
 /** Short "sold by" line under a product tile. */
-const UNIT_TILE: Record<Unit, string> = { kg: "Kg", L: "Liter", pcs: "Piece" };
-const UNIT_TILE_PLURAL: Record<Unit, string> = { kg: "Kg", L: "Liters", pcs: "Pieces" };
+const UNIT_TILE: Record<Unit, string> = { kg: "Kg", L: "Liter", pcs: "Piece", jar: "Jar" };
+const UNIT_TILE_PLURAL: Record<Unit, string> = {
+  kg: "Kg",
+  L: "Liters",
+  pcs: "Pieces",
+  jar: "Jar 3L / 8L",
+};
 /** Unit next to a quantity on the order screens. */
-const UNIT_QTY: Record<Unit, string> = { kg: "Kg", L: "L", pcs: "pcs" };
+const UNIT_QTY: Record<Unit, string> = { kg: "Kg", L: "L", pcs: "pcs", jar: "jars" };
+
+/** A jar price as shown to the customer: "JOD 20.00", or "To be confirmed" while it is unset. */
+function useJarPrice() {
+  const { t, money } = useI18n();
+  return (product: CatalogProduct, size: JarSize) => {
+    const price = product.jarPrices?.[size] ?? null;
+    return price === null ? t("To be confirmed") : money(price);
+  };
+}
 
 /* ------------------------------------------------------------------ */
 /* Shared pieces                                                       */
@@ -347,9 +360,10 @@ export function Products() {
   const { catalog } = useStore();
   const names = useProductText();
   const shelf = catalog.filter((p) => p.active);
+  const jarPrice = useJarPrice();
   const priceLabel = (product: CatalogProduct) => {
-    if (product.id === "oxygen")
-      return t("{a} / {u}", { a: money(JAR_PRICE["3L"]), u: t("3L jar") });
+    if (product.jarPrices)
+      return `${t("3L jar")} ${jarPrice(product, "3L")} · ${t("8L jar")} ${jarPrice(product, "8L")}`;
     if (product.price === null) return t("To be confirmed");
     return t("{a} / {u}", { a: money(product.price), u: t(product.unit) });
   };
@@ -487,6 +501,7 @@ function GasDetails({ product }: { product: CatalogProduct }) {
   const { t, money } = useI18n();
   const names = useProductText();
   const { startDraft } = useStore();
+  const jarPrice = useJarPrice();
   const [jar, setJar] = useState<JarSize>("3L");
   const oxygen = product.id === "oxygen";
   return (
@@ -532,11 +547,11 @@ function GasDetails({ product }: { product: CatalogProduct }) {
           <>
             <KeyValue
               label={t("Fixed Price · 3L Jar")}
-              value={t("{p} / jar (proposed)", { p: money(JAR_PRICE["3L"]) })}
+              value={t("{p} / jar (proposed)", { p: jarPrice(product, "3L") })}
             />
             <KeyValue
               label={t("Fixed Price · 8L Jar")}
-              value={t("{p} / jar (proposed)", { p: money(JAR_PRICE["8L"]) })}
+              value={t("{p} / jar (proposed)", { p: jarPrice(product, "8L") })}
             />
           </>
         ) : (
@@ -612,7 +627,9 @@ function useDraftSummary() {
   return {
     product,
     unit,
-    qtyLabel: `${draft.qty} ${unit}`,
+    // Oxygen: "2 × 8L jar"; everything else: "10 Kg".
+    qtyLabel:
+      product.unit === "jar" ? `${draft.qty} × ${t(`${draft.jar} jar`)}` : `${draft.qty} ${unit}`,
     address,
     addressLabel: address ? [t(address.label), t(address.city)].filter(Boolean).join(", ") : "",
     slot: date && draft.time ? `${date.short}, ${draft.time}` : "",
@@ -625,7 +642,12 @@ function useDraftSummary() {
     unitPriceLabel:
       pricing.unit === null
         ? t("To be confirmed")
-        : t("{a} (proposed)", { a: t("{a} / {u}", { a: money(pricing.unit), u: unit }) }),
+        : t("{a} (proposed)", {
+            a: t("{a} / {u}", {
+              a: money(pricing.unit),
+              u: product.unit === "jar" ? t(`${draft.jar} jar`) : unit,
+            }),
+          }),
   };
 }
 
@@ -668,10 +690,12 @@ export function OrderForm() {
   if (!listed || !id) return <Navigate to="/products" replace />;
   const product = listed;
   const reorder = draft.reorderOf !== undefined;
+  // Jars are counted, so their limits read as plain numbers ("Min 1 · Max 20").
+  const withUnit = (n: number) => (product.unit === "jar" ? `${n}` : `${n} ${s.unit}`);
   const range = {
-    min: `${product.min} ${s.unit}`,
-    step: `${product.step} ${s.unit}`,
-    max: `${product.max} ${s.unit}`,
+    min: withUnit(product.min),
+    step: withUnit(product.step),
+    max: withUnit(product.max),
   };
   const belowMin = draft.qty < product.min;
   const ready = !belowMin && Boolean(s.address && draft.date && draft.time);
@@ -741,7 +765,7 @@ export function OrderForm() {
               ? t("Previous quantity: {q} · Min {min} · Max {max}", { q: s.qtyLabel, ...range })
               : t(
                   id === "oxygen"
-                    ? "Min {min} · Step {step} · Max {max} · Supplied in 3L / 8L jars"
+                    ? "Number of jars · Min {min} · Max {max}"
                     : "Min {min} · Step {step} · Max {max}",
                   range,
                 )}

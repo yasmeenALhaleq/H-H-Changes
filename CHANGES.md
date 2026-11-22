@@ -5,7 +5,44 @@ Design source: Figma file `H-H`, page **High-Fidelity Design** (node `1:4`).
 
 After copying, run `pnpm install` once (new dependencies were added), then `pnpm dev` or `pnpm build`.
 
-## ★ 22 Nov — Thin gold lines inside text boxes (start here)
+## ★ 22 Nov, later — Oxygen sold by the jar, jar prices set by the admin (start here)
+
+**Upload these 5 files, then Publish:**
+
+- `src/store/index.tsx`
+- `src/store/format.ts`
+- `src/customer/shop.tsx`
+- `src/admin/screens.tsx`
+- `src/i18n/ar.ts`
+
+**What was wrong:** oxygen was counted in liters and priced per liter
+(jar price ÷ jar size), so the total jumped around — e.g. an 8L jar with the
+default 3 L came to JOD 15–16 instead of 40.
+
+**Now:**
+
+- The customer picks a jar size (3L or 8L) and a **number of jars**:
+  total = number of jars × that jar's price. 1 × 3L = JOD 20, 1 × 8L = JOD 40,
+  2 × 8L = JOD 80.
+- Prices: **3L jar JOD 20.00, 8L jar JOD 40.00** (still marked proposed).
+- **Admin → Products → Oxygen** has two separate fields, "Price per 3L jar"
+  and "Price per 8L jar". Each can also be left empty → the customer sees
+  "To be confirmed" for that size. The products table and the "Customer sees"
+  preview show both prices.
+- The customer sees both jar prices on the Products list and on the oxygen
+  screen; the order form, review and confirmation read "2 × 8L jar".
+- Oxygen order limits: 1 to 20 jars.
+
+**Database (already applied, nothing to upload):** `products.jar_prices`
+holds the per-size prices (oxygen = 3L 20, 8L 40); `admin_update_product`
+takes them as `p_jar_prices`. The three existing oxygen orders (#1031, #1037,
+#1039) were counted in liters; their quantity is now 1 jar each. Their saved
+totals were left as they were — #1031 still shows JOD 15, the wrong price it
+was placed at.
+
+---
+
+## ★ 22 Nov — Thin gold lines inside text boxes
 
 **Upload these 2 files, then Publish:**
 
